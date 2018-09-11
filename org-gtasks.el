@@ -137,14 +137,28 @@ It returns the code provided by the service."
   (unless (or org-gtasks-access-token org-gtasks-refresh-token)
     (org-gtasks-request-token)))
 
+(defun org-gtasks-format-iso2org (str)
+  (let* ((plst (org-gcal--parse-date str))
+         (seconds (org-gcal--time-to-seconds plst)))
+    (format-time-string "%Y-%m-%d %a %H:%M"
+			(seconds-to-time seconds))))
+
+(defun org-gtasks-format-org2iso (year mon day hour min)
+  (let ((seconds (time-to-seconds (encode-time 0 min hour day mon year))))
+    (concat (format-time-string "%Y-%m-%dT%H:%M" (seconds-to-time seconds))
+	    ":00Z")))
+
 (defun org-gtasks-task (plst)
   (let* ((id  (plist-get plst :id))
 	 (title  (plist-get plst :title))
 	 (notes  (plist-get plst :notes))
 	 (status (if (string= "completed" (plist-get plst :status))
 		     "DONE"
-		   "TODO")))
+		   "TODO"))
+	 (completed (plist-get plst :completed)))
     (concat (format "* %s %s\n" status title)
+	    (when completed
+	      (format "  CLOSED: [%s]\n" (org-gtasks-format-iso2org completed)))
 	    "  :PROPERTIES:\n"
 	    "  :ID: " id "\n"
 	    "  :END:\n"
@@ -218,34 +232,37 @@ It returns the code provided by the service."
 	    (setq org-gtasks-tasks (plist-get (request-response-data response) :items))
 	    (org-gtasks-write-file))))))))
 
-(defun org-gtasks-post (title notes status id)
-  (org-gtasks-ensure-token)
-  (request
-   (concat
-    org-gtasks-default-url
-    (when id
-      (concat "/" id)))
-   :type (if id "PATCH" "POST")
-   :headers '(("Content-Type" . "application/json"))
-   :data (json-encode `(("title" . ,title)
-                        ("notes" . ,notes)
-                        ("status" . ,status)))
-   :params `(("access_token" . ,org-gtasks-access-token)
-             ("key" . ,org-gtasks-client-secret)
-             ("grant_type" . "authorization_code"))
-   :parser 'org-gcal-json-read
-   :error (cl-function
-           (lambda (&key response &allow-other-keys)
-             (let ((status (request-response-status-code response))
-                   (error-msg (request-response-error-thrown response)))
-               (cond
-                ((eq status 401)
-		 (message "Received HTTP 401")
-		 (message "OAuth token expired. Now trying to refresh-token")
-		 (org-gtasks-get-access-token))
-                (t
-		 (message "Status code: %s" (number-to-string status))
-		 (message "%s" (pp-to-string error-msg)))))))))
+(defun org-gtasks-post (title notes status id completed)
+  (let ((data-list `(("title" . ,title)
+                     ("notes" . ,notes)
+                     ("status" . ,status))))
+    (when completed
+      (add-to-list 'data-list `("completed" . ,completed)))
+    (org-gtasks-ensure-token)
+    (request
+     (concat
+      org-gtasks-default-url
+      (when id
+	(concat "/" id)))
+     :type (if id "PATCH" "POST")
+     :headers '(("Content-Type" . "application/json"))
+     :data (json-encode data-list)
+     :params `(("access_token" . ,org-gtasks-access-token)
+               ("key" . ,org-gtasks-client-secret)
+               ("grant_type" . "authorization_code"))
+     :parser 'org-gtasks-json-read
+     :error (cl-function
+             (lambda (&key response &allow-other-keys)
+               (let ((status (request-response-status-code response))
+                     (error-msg (request-response-error-thrown response)))
+		 (cond
+                  ((eq status 401)
+		   (message "Received HTTP 401")
+		   (message "OAuth token expired. Now trying to refresh-token")
+		   (org-gtasks-get-access-token))
+                  (t
+		   (message "Status code: %s" (number-to-string status))
+		   (message "%s" (pp-to-string error-msg))))))))))
 
 (defun org-gtasks-find-id (id)
   (plist-get (seq-find (lambda (task)
@@ -257,19 +274,28 @@ It returns the code provided by the service."
   (with-current-buffer (find-file-noselect org-gtasks-file)
     (org-element-map (org-element-parse-buffer) 'headline
       (lambda (hl)
-	(let ((id (org-gtasks-find-id (org-element-property :ID hl)))
-	      (title (org-element-property :title hl))
-	      (status (if (string= (org-element-property :todo-type hl) "done")
-			  "completed"
-			"needsAction"))
-	      (notes (if (plist-get (cadr hl) :contents-begin)
-			 (replace-regexp-in-string "\\(.*\n\\)*.*END:\n"
-						   ""
-						   (buffer-substring-no-properties
-						    (plist-get (cadr hl) :contents-begin)
-						    (plist-get (cadr hl) :contents-end)))
-		       "")))
-	  (org-gtasks-post title notes status id))))))
+	(let* ((id (org-gtasks-find-id (org-element-property :ID hl)))
+	       (title (org-element-interpret-data
+		       (org-element-property :title hl)))
+	       (closed (org-element-property :closed hl))
+	       (completed (when closed
+			    (org-gtasks-format-org2iso
+			     (plist-get (cadr closed) :year-start)
+			     (plist-get (cadr closed) :month-start)
+			     (plist-get (cadr closed) :day-start)
+			     (plist-get (cadr closed) :hour-start)
+			     (plist-get (cadr closed) :minute-start))))
+	       (status (if (string= (org-element-property :todo-type hl) "done")
+			   "completed"
+			 "needsAction"))
+	       (notes (if (plist-get (cadr hl) :contents-begin)
+			  (replace-regexp-in-string "\\(.*\n\\)*.*END:\n"
+						    ""
+						    (buffer-substring-no-properties
+						     (plist-get (cadr hl) :contents-begin)
+						     (plist-get (cadr hl) :contents-end)))
+			"")))
+	  (org-gtasks-post title notes status id completed))))))
 
 
 (provide 'org-gtasks)
