@@ -138,10 +138,7 @@ It returns the code provided by the service."
     (org-gtasks-request-token)))
 
 (defun org-gtasks-format-iso2org (str)
-  (let* ((plst (org-gcal--parse-date str))
-         (seconds (org-gcal--time-to-seconds plst)))
-    (format-time-string "%Y-%m-%d %a %H:%M"
-			(seconds-to-time seconds))))
+  (format-time-string "%Y-%m-%d %a %H:%M" (date-to-time str)))
 
 (defun org-gtasks-format-org2iso (year mon day hour min)
   (let ((seconds (time-to-seconds (encode-time 0 min hour day mon year))))
