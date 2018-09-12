@@ -3,13 +3,13 @@ Export all Google Tasks to org file.
 
 This module has been HIGHLY inspired by [[https://github.com/myuhe/org-gcal.el][org-gcal]]
 
-It's still experimental, a lot of features are missing ...
 
 ** Config
 
 #+begin_src elisp
 (require 'org-gtasks)
-(setq org-gcal-client-id "your-id-foo.apps.googleusercontent.com"
-      org-gcal-client-secret "your-secret"
-      org-gcal-file "~/gtasks.org")
+(org-gtasks-register-account :name "Perso"
+			     :directory "~/.emacs.d/gtasks/"
+                             :client-id "XXXX"
+                             :client-secret "XXXX")
 #+end_src

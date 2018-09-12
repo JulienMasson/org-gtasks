@@ -18,57 +18,35 @@
 ;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
 
 (require 'json)
-(require 'request-deferred)
+(require 'request)
 (require 'cl-lib)
 
-(defgroup org-gtasks nil "Org sync with Google Tasks"
-  :tag "Org google tasks"
-  :group 'org)
-
-(defcustom org-gtasks-client-id nil
-  "Client ID for OAuth."
-  :group 'org-gtasks
-  :type 'string)
-
-(defcustom org-gtasks-client-secret nil
-  "Google tasks secret key for OAuth."
-  :group 'org-gtasks
-  :type 'string)
-
-(defcustom org-gtasks-access-token nil
-  "Google tasks access token"
-  :group 'org-gtasks
-  :type 'string)
-
-(defcustom org-gtasks-refresh-token nil
-  "Google tasks refresh token"
-  :group 'org-gtasks
-  :type 'string)
-
-(defcustom org-gtasks-file nil
-  "Org file where we store Google tasks"
-  :group 'org-gtasks
-  :type 'string)
-
-(defcustom org-gtasks-file-header nil
-  "Org file header"
-  :group 'org-gtasks
-  :type 'string)
-
-(defconst org-gtasks-auth-url "https://accounts.google.com/o/oauth2/auth"
+(defconst org-gtasks-token-url "https://www.googleapis.com/oauth2/v3/token"
   "Google OAuth2 server URL.")
 
-(defconst org-gtasks-token-url "https://www.googleapis.com/oauth2/v3/token"
+(defconst org-gtasks-auth-url "https://accounts.google.com/o/oauth2/auth"
   "Google OAuth2 server URL.")
 
 (defconst org-gtasks-resource-url "https://www.googleapis.com/auth/tasks"
   "URL used to request access to tasks resources.")
 
-(defconst org-gtasks-key-url (concat "?key=" org-gtasks-client-secret))
+(defconst org-gtasks-default-url "https://www.googleapis.com/tasks/v1")
 
-(defconst org-gtasks-default-url "https://www.googleapis.com/tasks/v1/lists/@default/tasks")
+(defvar org-gtasks-account nil)
 
-(defvar org-gtasks-tasks nil)
+(cl-defstruct org-gtasks
+  (name nil :read-only t)
+  directory
+  client-id
+  client-secret
+  access-token
+  refresh-token
+  tasklists)
+
+(cl-defstruct tasklist
+  title
+  id
+  tasks)
 
 (defun org-gtasks-json-read ()
   (let ((json-object-type 'plist))
@@ -80,62 +58,143 @@
      (decode-coding-string
       (buffer-substring-no-properties (point-min) (point-max)) 'utf-8))))
 
-(defun org-gtasks-request-authorization ()
-  "Request OAuth authorization at AUTH-URL by launching `browse-url'.
-CLIENT-ID is the client id provided by the provider.
-It returns the code provided by the service."
+(defun org-gtasks-request-authorization (account)
   (browse-url (concat org-gtasks-auth-url
-                      "?client_id=" (url-hexify-string org-gtasks-client-id)
+                      "?client_id=" (url-hexify-string (org-gtasks-client-id account))
                       "&response_type=code"
                       "&redirect_uri=" (url-hexify-string "urn:ietf:wg:oauth:2.0:oob")
                       "&scope=" (url-hexify-string org-gtasks-resource-url)))
   (read-string "Enter the code your browser displayed: "))
 
-(defun org-gtasks-get-access-token ()
-  "Refresh OAuth access at TOKEN-URL."
-  (deferred:$
-    (request-deferred
-     org-gtasks-token-url
-     :type "POST"
-     :data `(("client_id" . ,org-gtasks-client-id)
-             ("client_secret" . ,org-gtasks-client-secret)
-             ("refresh_token" . ,org-gtasks-refresh-token)
-             ("grant_type" . "refresh_token"))
-     :parser 'org-gtasks-json-read
-     :error
-     (cl-function (lambda (&key error-thrown &allow-other-keys)
-                    (message "Got error: %S" error-thrown))))
-    (deferred:nextc it
-      (lambda (response)
-	(let ((data (request-response-data response)))
-	  (setq org-gtasks-access-token (plist-get data :access_token)))))
-    (deferred:nextc it
-      (lambda (tmp)
-        (org-gtasks-pull)))))
+(defun org-gtasks-get-refresh-token (account)
+  (let* ((response (request
+		    org-gtasks-token-url
+		    :type "POST"
+		    :data `(("client_id" . ,(org-gtasks-client-id account))
+			    ("client_secret" . ,(org-gtasks-client-secret account))
+			    ("code" . ,(org-gtasks-request-authorization account))
+			    ("redirect_uri" .  "urn:ietf:wg:oauth:2.0:oob")
+			    ("grant_type" . "authorization_code"))
+		    :parser 'org-gtasks-json-read
+		    :error (cl-function
+			    (lambda (&key error-thrown &allow-other-keys)
+			      (message "Got error: %S" error-thrown)))
+		    :sync t))
+	 (data (request-response-data response)))
+    (when (plist-member data :refresh_token)
+      (plist-get data :refresh_token))))
 
-(defun org-gtasks-request-token ()
-  "Request OAuth access at TOKEN-URL."
-  (request
-   org-gtasks-token-url
-   :type "POST"
-   :data `(("client_id" . ,org-gtasks-client-id)
-           ("client_secret" . ,org-gtasks-client-secret)
-           ("code" . ,(org-gtasks-request-authorization))
-           ("redirect_uri" .  "urn:ietf:wg:oauth:2.0:oob")
-           ("grant_type" . "authorization_code"))
-   :parser 'org-gtasks-json-read
-   :success (cl-function
-             (lambda (&key data &allow-other-keys)
-               (when data
-		 (setq org-gtasks-access-token (plist-get data :access_token))
-		 (setq org-gtasks-refresh-token (plist-get data :refresh_token)))))
-   :error (cl-function
-	   (lambda (&key error-thrown &allow-other-keys)
-             (message "Got error: %S" error-thrown)))))
+(defun org-gtasks-get-access-token (account)
+  (let* ((response (request
+		    org-gtasks-token-url
+		    :type "POST"
+		    :data `(("client_id" . ,(org-gtasks-client-id account))
+			    ("client_secret" . ,(org-gtasks-client-secret account))
+			    ("refresh_token" . ,(org-gtasks-refresh-token account))
+			    ("grant_type" . "refresh_token"))
+		    :parser 'org-gtasks-json-read
+		    :error (cl-function
+			    (lambda (&key error-thrown &allow-other-keys)
+			      (message "Got error: %S" error-thrown)))
+		    :sync t))
+	 (data (request-response-data response)))
+    (when (plist-member data :access_token)
+      (plist-get data :access_token))))
 
-(defun org-gtasks-ensure-token ()
-  (unless (or org-gtasks-access-token org-gtasks-refresh-token)
-    (org-gtasks-request-token)))
+(defun org-gtasks-read-local-refresh-token (account)
+  (let* ((dir (org-gtasks-directory account))
+	 (file (concat dir ".refresh_token")))
+    (when (file-exists-p file)
+      (with-temp-buffer
+	(insert-file-contents file)
+	(buffer-string)))))
+
+(defun org-gtasks-get-local-refresh-token (account)
+  (let* ((dir (org-gtasks-directory account))
+	 (file (concat dir ".refresh_token"))
+	 (refresh-token (org-gtasks-get-refresh-token account)))
+    (unless (file-exists-p file)
+      (find-file-noselect file))
+    (with-temp-file file
+      (insert refresh-token))))
+
+(defun org-gtasks-check-token (account)
+  (let ((refresh-token (org-gtasks-refresh-token account))
+	(local-refresh-token (org-gtasks-read-local-refresh-token account))
+	(access-token (org-gtasks-access-token account)))
+    (unless refresh-token
+      (if local-refresh-token
+	  (setf (org-gtasks-refresh-token account) local-refresh-token)
+	(org-gtasks-get-local-refresh-token account)
+	(setf (org-gtasks-refresh-token account) (org-gtasks-read-local-refresh-token account))))
+    (unless access-token
+      (setf (org-gtasks-access-token account) (org-gtasks-get-access-token account)))))
+
+(defun org-gtasks-get-tasks (account tasklist)
+  (org-gtasks-check-token account)
+  (let* ((id (tasklist-id tasklist))
+	 (url (format "%s/lists/%s/tasks" org-gtasks-default-url id))
+	 (response (request
+		    url
+		    :type "GET"
+		    :params `(("access_token" . ,(org-gtasks-access-token account))
+			      ("key" . ,(org-gtasks-client-secret account))
+			      ("singleEvents" . "True")
+			      ("orderBy" . "startTime")
+			      ("grant_type" . "authorization_code"))
+		    :parser 'org-gtasks-json-read
+		    :error (cl-function
+			    (lambda (&key error-thrown &allow-other-keys)
+			      (message "Got error: %S" error-thrown)))
+		    :sync t))
+	 (data (request-response-data response)))
+    (when (plist-member data :items)
+      (setf (tasklist-tasks tasklist) (plist-get data :items)))))
+
+(defun org-gtasks-get-taskslists (account)
+  (org-gtasks-check-token account)
+  (let* ((url (concat org-gtasks-default-url "/users/@me/lists"))
+	 (response (request
+		    url
+		    :type "GET"
+		    :params `(("access_token" . ,(org-gtasks-access-token account))
+			      ("key" . ,(org-gtasks-client-secret account))
+			      ("singleEvents" . "True")
+			      ("orderBy" . "startTime")
+			      ("grant_type" . "authorization_code"))
+		    :parser 'org-gtasks-json-read
+		    :error (cl-function
+			    (lambda (&key error-thrown &allow-other-keys)
+			      (message "Got error: %S" error-thrown)))
+		    :sync t))
+	 (data (request-response-data response)))
+    (when (plist-member data :items)
+      (setf (org-gtasks-tasklists account)
+	    (mapcar (lambda (item)
+		      (let ((title (plist-get item :title))
+			    (id (plist-get item :id)))
+			(make-tasklist :title title :id id)))
+		    (plist-get data :items))))))
+
+(defun org-gtasks-write-to-org (account)
+  (let ((dir (org-gtasks-directory account))
+	(tasklists (org-gtasks-tasklists account)))
+    (mapc (lambda (tasklist)
+	    (let* ((title (tasklist-title tasklist))
+		   (file (format "%s%s.org" dir title))
+		   (header (format "#+FILETAGS: :%s:\n" title))
+		   (tasks (tasklist-tasks tasklist)))
+	      (message "File: %s" file)
+	      (with-current-buffer (find-file-noselect file)
+		(erase-buffer)
+		(insert header)
+		(insert (mapconcat 'identity
+				   (mapcar (lambda (lst)
+					     (org-gtasks-task lst))
+					   tasks) ""))
+		(org-set-startup-visibility)
+		(save-buffer))))
+	  tasklists)))
 
 (defun org-gtasks-format-iso2org (str)
   (format-time-string "%Y-%m-%d %a %H:%M" (date-to-time str)))
@@ -161,138 +220,115 @@ It returns the code provided by the service."
 	    "  :END:\n"
 	    (when notes) notes (when notes "\n"))))
 
-(defun org-gtasks-write-file ()
-  (with-current-buffer (find-file-noselect org-gtasks-file)
-    (erase-buffer)
-    (when org-gtasks-file-header
-      (insert org-gtasks-file-header))
-    (insert (mapconcat 'identity
-		       (mapcar (lambda (lst)
-				 (org-gtasks-task lst))
-			       org-gtasks-tasks) ""))
-    (org-set-startup-visibility)
-    (save-buffer)))
+(defun org-gtasks-tasks-find-id (tasks id)
+  (plist-get (seq-find (lambda (task)
+			 (string= (plist-get task :id) id))
+		       tasks) :id))
 
-(defun org-gtasks-pull ()
-  (interactive)
-  (org-gtasks-ensure-token)
-  (deferred:$
-    (request-deferred
-     org-gtasks-default-url
-     :type "GET"
-     :params `(("access_token" . ,org-gtasks-access-token)
-               ("key" . ,org-gtasks-client-secret)
-               ("singleEvents" . "True")
-	       ("orderBy" . "startTime")
-               ("grant_type" . "authorization_code"))
-     :parser 'org-gtasks-json-read
-     :error
-     (cl-function (lambda (&key error-thrown &allow-other-keys)
-                    (message "Got error: %S" error-thrown))))
-    (deferred:nextc it
-      (lambda (response)
-        (let
-            ((temp (request-response-data response))
-             (status (request-response-status-code response))
-             (error-msg (request-response-error-thrown response)))
-          (cond
-           ;; If there is no network connectivity, the response will
-           ;; not include a status code.
-           ((eq status nil)
-            (message "Please check your network connectivity"))
-           ;; Receiving a 403 response could mean that the tasks
-           ;; API has not been enabled. When the user goes and
-           ;; enables it, a new token will need to be generated. This
-           ;; takes care of that step.
-           ((eq 401 (or (plist-get (plist-get (request-response-data response) :error) :code)
-                        status))
-	    (message "Received HTTP 401")
-	    (message "OAuth token expired. Now trying to refresh-token")
-            (deferred:next
-              (lambda() (org-gtasks-get-access-token))))
-           ((eq 403 status)
-            (message "Received HTTP 403")
-            (message "Ensure you enabled the Tasks API through the Developers Console, then try again."))
-           ;; We got some 2xx response, but for some reason no
-           ;; message body.
-           ((and (> 299 status) (eq temp nil))
-	    (message "Received HTTP: %s" (number-to-string status))
-	    (message "Error occured, but no message body."))
-           ((not (eq error-msg nil))
-	    ;; Generic error-handler meant to provide useful
-	    ;; information about failure cases not otherwise
-	    ;; explicitly specified.
-	    (message "Status code: %s" (number-to-string status))
-	    (message "%s" (pp-to-string error-msg)))
-           ;; Fetch was successful.
-           (t
-	    (setq org-gtasks-tasks (plist-get (request-response-data response) :items))
-	    (org-gtasks-write-file))))))))
-
-(defun org-gtasks-post (title notes status id completed)
-  (let ((data-list `(("title" . ,title)
-                     ("notes" . ,notes)
-                     ("status" . ,status))))
+(defun org-gtasks-post (account tasklist title notes status id completed)
+  (org-gtasks-check-token account)
+  (let* ((tasklist-id (tasklist-id tasklist))
+	 (url (format "%s/lists/%s/tasks" org-gtasks-default-url tasklist-id))
+	 (data-list `(("title" . ,title)
+                      ("notes" . ,notes)
+                      ("status" . ,status))))
     (when completed
       (add-to-list 'data-list `("completed" . ,completed)))
-    (org-gtasks-ensure-token)
     (request
      (concat
-      org-gtasks-default-url
+      url
       (when id
 	(concat "/" id)))
      :type (if id "PATCH" "POST")
      :headers '(("Content-Type" . "application/json"))
      :data (json-encode data-list)
-     :params `(("access_token" . ,org-gtasks-access-token)
-               ("key" . ,org-gtasks-client-secret)
-               ("grant_type" . "authorization_code"))
+     :params `(("access_token" . ,(org-gtasks-access-token account))
+	       ("key" . ,(org-gtasks-client-secret account))
+	       ("grant_type" . "authorization_code"))
      :parser 'org-gtasks-json-read
      :error (cl-function
-             (lambda (&key response &allow-other-keys)
-               (let ((status (request-response-status-code response))
-                     (error-msg (request-response-error-thrown response)))
+	     (lambda (&key response &allow-other-keys)
+	       (let ((status (request-response-status-code response))
+		     (error-msg (request-response-error-thrown response)))
 		 (cond
-                  ((eq status 401)
+		  ((eq status 401)
 		   (message "Received HTTP 401")
 		   (message "OAuth token expired. Now trying to refresh-token")
 		   (org-gtasks-get-access-token))
-                  (t
+		  (t
 		   (message "Status code: %s" (number-to-string status))
 		   (message "%s" (pp-to-string error-msg))))))))))
 
-(defun org-gtasks-find-id (id)
-  (plist-get (seq-find (lambda (task)
-			 (string= (plist-get task :id) id))
-		       org-gtasks-tasks) :id))
+(defun org-gtasks-push-tasklist (account tasklist)
+  (let* ((dir (org-gtasks-directory account))
+	 (title (tasklist-title tasklist))
+	 (tasks (tasklist-tasks tasklist))
+	 ;; TODO add file name in defstruct
+	 (file (format "%s%s.org" dir title)))
+    (with-current-buffer (find-file-noselect file)
+      (org-element-map (org-element-parse-buffer) 'headline
+	(lambda (hl)
+	  (let* ((id (org-gtasks-tasks-find-id tasks (org-element-property :ID hl)))
+		 (title (org-element-interpret-data
+			 (org-element-property :title hl)))
+		 (closed (org-element-property :closed hl))
+		 (completed (when closed
+			      (org-gtasks-format-org2iso
+			       (plist-get (cadr closed) :year-start)
+			       (plist-get (cadr closed) :month-start)
+			       (plist-get (cadr closed) :day-start)
+			       (plist-get (cadr closed) :hour-start)
+			       (plist-get (cadr closed) :minute-start))))
+		 (status (if (string= (org-element-property :todo-type hl) "done")
+			     "completed"
+			   "needsAction"))
+		 (notes (if (plist-get (cadr hl) :contents-begin)
+			    (replace-regexp-in-string "\\(.*\n\\)*.*END:\n"
+						      ""
+						      (buffer-substring-no-properties
+						       (plist-get (cadr hl) :contents-begin)
+						       (plist-get (cadr hl) :contents-end)))
+			  "")))
+	    (org-gtasks-post account tasklist title notes status id completed)))))))
 
-(defun org-gtasks-push ()
-  (interactive)
-  (with-current-buffer (find-file-noselect org-gtasks-file)
-    (org-element-map (org-element-parse-buffer) 'headline
-      (lambda (hl)
-	(let* ((id (org-gtasks-find-id (org-element-property :ID hl)))
-	       (title (org-element-interpret-data
-		       (org-element-property :title hl)))
-	       (closed (org-element-property :closed hl))
-	       (completed (when closed
-			    (org-gtasks-format-org2iso
-			     (plist-get (cadr closed) :year-start)
-			     (plist-get (cadr closed) :month-start)
-			     (plist-get (cadr closed) :day-start)
-			     (plist-get (cadr closed) :hour-start)
-			     (plist-get (cadr closed) :minute-start))))
-	       (status (if (string= (org-element-property :todo-type hl) "done")
-			   "completed"
-			 "needsAction"))
-	       (notes (if (plist-get (cadr hl) :contents-begin)
-			  (replace-regexp-in-string "\\(.*\n\\)*.*END:\n"
-						    ""
-						    (buffer-substring-no-properties
-						     (plist-get (cadr hl) :contents-begin)
-						     (plist-get (cadr hl) :contents-end)))
-			"")))
-	  (org-gtasks-post title notes status id completed))))))
+(defun org-gtasks-push (account)
+  (let ((tasklists (org-gtasks-tasklists account)))
+    (mapc (lambda (tasklist)
+	    (org-gtasks-push-tasklist account tasklist))
+	  tasklists)
+    (message "Push %s done" (org-gtasks-name account))))
+
+(defun org-gtasks-pull (account)
+  (org-gtasks-get-taskslists account)
+  (let ((tasklists (org-gtasks-tasklists account)))
+    (mapc (lambda (tasklist)
+	    (org-gtasks-get-tasks account tasklist))
+	  tasklists))
+  (org-gtasks-write-to-org account)
+  (message "Pull %s done" (org-gtasks-name account)))
+
+(defvar org-gtasks-actions
+  '(("Push" . org-gtasks-push)
+    ("Pull" . org-gtasks-pull)))
+
+(defun org-gtasks (action)
+  (interactive (list (completing-read "Org gtasks: "
+				      (mapcar 'car org-gtasks-actions))))
+  (let ((func (assoc-default action org-gtasks-actions)))
+    (if (functionp func)
+	(funcall func org-gtasks-account))))
+
+(defun org-gtasks-register-account (&rest plist)
+  (let ((name (plist-get plist :name))
+	(directory (plist-get plist :directory))
+	(client-id (plist-get plist :client-id))
+	(client-secret (plist-get plist :client-secret)))
+    (unless (file-directory-p directory)
+      (make-directory directory))
+    (setq org-gtasks-account (make-org-gtasks :name name
+					      :directory directory
+					      :client-id client-id
+					      :client-secret client-secret))))
 
 
 (provide 'org-gtasks)
