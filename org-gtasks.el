@@ -171,6 +171,7 @@
       (setf (tasklist-tasks tasklist) (plist-get data :items)))))
 
 (defun org-gtasks-get-taskslists (account)
+  (setf (org-gtasks-tasklists account) nil)
   (let* ((url (concat org-gtasks-default-url "/users/@me/lists"))
 	 (response (request
 		    url
@@ -304,11 +305,13 @@
 
 (defun org-gtasks-push (account)
   (org-gtasks-check-token account)
+  (org-gtasks-get-taskslists account)
   (let ((tasklists (org-gtasks-tasklists account)))
-    (mapc (lambda (tasklist)
-	    (org-gtasks-push-tasklist account tasklist))
+    (when tasklists
+      (mapc (lambda (tasklist)
+	      (org-gtasks-push-tasklist account tasklist))
 	  tasklists)
-    (message "Push %s done" (org-gtasks-name account))))
+      (message "Push %s done" (org-gtasks-name account)))))
 
 (defun org-gtasks-pull (account)
   (org-gtasks-check-token account)
