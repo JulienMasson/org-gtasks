@@ -66,6 +66,28 @@
                       "&scope=" (url-hexify-string org-gtasks-resource-url)))
   (read-string "Enter the code your browser displayed: "))
 
+(defun org-gtasks-parse-errors (response &optional func &rest args)
+  (let ((data (request-response-data response))
+	(status (request-response-status-code response))
+	(error-msg (request-response-error-thrown response)))
+  (cond
+   ((eq status nil)
+    (message "Please check your network connectivity"))
+   ((eq 401 (or (plist-get (plist-get data :error) :code)
+                status))
+    (message "OAuth token expired. refresh access token")
+    (setf (org-gtasks-access-token account) (org-gtasks-get-access-token account))
+    (if (functionp func)
+	(apply func args)))
+   ((eq 403 status)
+    (message "Ensure you enabled the Tasks API through the Developers Console"))
+   ((and (> 299 status) (eq data nil))
+    (message "Received HTTP: %s" (number-to-string status))
+    (message "Error occured, but no message body."))
+   ((not (eq error-msg nil))
+    (message "Status code: %s" (number-to-string status))
+    (message "%s" (pp-to-string error-msg))))))
+
 (defun org-gtasks-get-refresh-token (account)
   (let* ((response (request
 		    org-gtasks-token-url
@@ -143,11 +165,9 @@
 			      ("orderBy" . "startTime")
 			      ("grant_type" . "authorization_code"))
 		    :parser 'org-gtasks-json-read
-		    :error (cl-function
-			    (lambda (&key error-thrown &allow-other-keys)
-			      (message "Got error: %S" error-thrown)))
 		    :sync t))
 	 (data (request-response-data response)))
+    (org-gtasks-parse-errors response #'org-gtasks-get-tasks account tasklist)
     (when (plist-member data :items)
       (setf (tasklist-tasks tasklist) (plist-get data :items)))))
 
@@ -163,11 +183,9 @@
 			      ("orderBy" . "startTime")
 			      ("grant_type" . "authorization_code"))
 		    :parser 'org-gtasks-json-read
-		    :error (cl-function
-			    (lambda (&key error-thrown &allow-other-keys)
-			      (message "Got error: %S" error-thrown)))
 		    :sync t))
 	 (data (request-response-data response)))
+    (org-gtasks-parse-errors response #'org-gtasks-get-taskslists account)
     (when (plist-member data :items)
       (setf (org-gtasks-tasklists account)
 	    (mapcar (lambda (item)
