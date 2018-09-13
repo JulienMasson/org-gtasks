@@ -233,46 +233,42 @@
 	    "  :END:\n"
 	    (when notes) notes (when notes "\n"))))
 
-(defun org-gtasks-tasks-find-id (tasks id)
-  (plist-get (seq-find (lambda (task)
-			 (string= (plist-get task :id) id))
-		       tasks) :id))
+(defun org-gtasks-push-task (account url action data-list)
+  (request
+   url
+   :type action
+   :headers '(("Content-Type" . "application/json"))
+   :data (json-encode data-list)
+   :params `(("access_token" . ,(org-gtasks-access-token account))
+	     ("key" . ,(org-gtasks-client-secret account))
+	     ("grant_type" . "authorization_code"))
+   :parser 'org-gtasks-json-read
+   :error (cl-function
+	   (lambda (&key response &allow-other-keys)
+	     (let ((status (request-response-status-code response))
+		   (error-msg (request-response-error-thrown response)))
+	       (message "Status code: %s" (number-to-string status))
+	       (message "%s" (pp-to-string error-msg)))))))
 
-(defun org-gtasks-push-task (account tasklist title notes status id completed)
-  (let* ((tasklist-id (tasklist-id tasklist))
-	 (url (format "%s/lists/%s/tasks" org-gtasks-default-url tasklist-id))
-	 (data-list `(("title" . ,title)
-                      ("notes" . ,notes)
-                      ("status" . ,status))))
-    (when completed
-      (add-to-list 'data-list `("completed" . ,completed)))
-    (request
-     (concat url (when id (concat "/" id)))
-     :type (if id "PATCH" "POST")
-     :headers '(("Content-Type" . "application/json"))
-     :data (json-encode data-list)
-     :params `(("access_token" . ,(org-gtasks-access-token account))
-	       ("key" . ,(org-gtasks-client-secret account))
-	       ("grant_type" . "authorization_code"))
-     :parser 'org-gtasks-json-read
-     :error (cl-function
-	     (lambda (&key response &allow-other-keys)
-	       (let ((status (request-response-status-code response))
-		     (error-msg (request-response-error-thrown response)))
-		 (message "Status code: %s" (number-to-string status))
-		 (message "%s" (pp-to-string error-msg))))))))
+(defun org-gtasks-find-action (tasks id)
+  (if (seq-find (lambda (task)
+		  (string= (plist-get task :id) id))
+		tasks)
+      "PATCH"
+    "POST"))
 
 (defun org-gtasks-push-tasklist (account tasklist)
   (let* ((dir (org-gtasks-directory account))
 	 (title (tasklist-title tasklist))
 	 (tasks (tasklist-tasks tasklist))
 	 ;; TODO add file name in defstruct
-	 (file (format "%s%s.org" dir title))
-	 list-id)
+	 (file (format "%s%s.org" dir title)))
     (with-current-buffer (find-file-noselect file)
       (org-element-map (org-element-parse-buffer) 'headline
 	(lambda (hl)
-	  (let* ((id (org-gtasks-tasks-find-id tasks (org-element-property :ID hl)))
+	  (let* ((url (format "%s/lists/%s/tasks" org-gtasks-default-url (tasklist-id tasklist)))
+		 (id (org-element-property :ID hl))
+		 (action (org-gtasks-find-action tasks id))
 		 (title (org-element-interpret-data
 			 (org-element-property :title hl)))
 		 (closed (org-element-property :closed hl))
@@ -292,8 +288,15 @@
 						      (buffer-substring-no-properties
 						       (plist-get (cadr hl) :contents-begin)
 						       (plist-get (cadr hl) :contents-end)))
-			  "")))
-	    (org-gtasks-push-task account tasklist title notes status id completed)))))))
+			  ""))
+		 (data-list `(("title" . ,title)
+			      ("notes" . ,notes)
+			      ("status" . ,status))))
+	    (when completed
+	      (add-to-list 'data-list `("completed" . ,completed)))
+	    (when (string= action "PATCH")
+	      (setq url (format "%s/%s" url id)))
+	    (org-gtasks-push-task account url action data-list)))))))
 
 (defun org-gtasks-delete-task (account tasklist-id task-id)
   (request
