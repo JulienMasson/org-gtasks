@@ -336,26 +336,33 @@
 	    tasklists)))
   (message "Delete done"))
 
+(defun org-gtasks-fetch (account)
+  (org-gtasks-check-token account)
+  (org-gtasks-get-taskslists account)
+  (let ((tasklists (org-gtasks-tasklists account)))
+    (when tasklists
+      (mapc (lambda (tasklist)
+	      (org-gtasks-get-tasks account tasklist))
+	    tasklists)
+      (message "Fetch %s done" (org-gtasks-name account)))))
+
 (defun org-gtasks-push (account)
   ;; FIXME, force to refresh access token since org-gtasks-post doesn't handle
   ;; properly the refresh ...
   (setf (org-gtasks-access-token org-gtasks-account) nil)
-  (org-gtasks-check-token account)
-  (org-gtasks-get-taskslists account)
+  (org-gtasks-fetch account)
   (let ((tasklists (org-gtasks-tasklists account)))
     (when tasklists
       (mapc (lambda (tasklist)
 	      (org-gtasks-push-tasklist account tasklist))
-	  tasklists)
+	    tasklists)
       (message "Push %s done" (org-gtasks-name account)))))
 
 (defun org-gtasks-pull (account)
-  (org-gtasks-check-token account)
-  (org-gtasks-get-taskslists account)
+  (org-gtasks-fetch account)
   (let ((tasklists (org-gtasks-tasklists account)))
     (when tasklists
       (mapc (lambda (tasklist)
-	      (org-gtasks-get-tasks account tasklist)
 	      (org-gtasks-write-to-org account tasklist))
 	    tasklists)
       (message "Pull %s done" (org-gtasks-name account)))))
