@@ -153,7 +153,6 @@
       (setf (org-gtasks-access-token account) (org-gtasks-get-access-token account)))))
 
 (defun org-gtasks-get-tasks (account tasklist)
-  (org-gtasks-check-token account)
   (let* ((id (tasklist-id tasklist))
 	 (url (format "%s/lists/%s/tasks" org-gtasks-default-url id))
 	 (response (request
@@ -172,7 +171,6 @@
       (setf (tasklist-tasks tasklist) (plist-get data :items)))))
 
 (defun org-gtasks-get-taskslists (account)
-  (org-gtasks-check-token account)
   (let* ((url (concat org-gtasks-default-url "/users/@me/lists"))
 	 (response (request
 		    url
@@ -244,7 +242,6 @@
 		       tasks) :id))
 
 (defun org-gtasks-post (account tasklist title notes status id completed)
-  (org-gtasks-check-token account)
   (let* ((tasklist-id (tasklist-id tasklist))
 	 (url (format "%s/lists/%s/tasks" org-gtasks-default-url tasklist-id))
 	 (data-list `(("title" . ,title)
@@ -310,6 +307,7 @@
 	    (org-gtasks-post account tasklist title notes status id completed)))))))
 
 (defun org-gtasks-push (account)
+  (org-gtasks-check-token account)
   (let ((tasklists (org-gtasks-tasklists account)))
     (mapc (lambda (tasklist)
 	    (org-gtasks-push-tasklist account tasklist))
@@ -317,6 +315,7 @@
     (message "Push %s done" (org-gtasks-name account))))
 
 (defun org-gtasks-pull (account)
+  (org-gtasks-check-token account)
   (org-gtasks-get-taskslists account)
   (let ((tasklists (org-gtasks-tasklists account)))
     (mapc (lambda (tasklist)
