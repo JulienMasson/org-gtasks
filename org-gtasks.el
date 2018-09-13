@@ -294,6 +294,48 @@
 			  "")))
 	    (org-gtasks-post account tasklist title notes status id completed)))))))
 
+(defun org-gtasks-delete-task (account tasklist-id task-id)
+  (request
+   (format "%s/lists/%s/tasks/%s" org-gtasks-default-url tasklist-id task-id)
+   :type "DELETE"
+   :headers '(("Content-Type" . "application/json"))
+   :params `(("access_token" . ,(org-gtasks-access-token account))
+	     ("key" . ,(org-gtasks-client-secret account))
+	     ("grant_type" . "authorization_code"))
+   :parser 'org-gtasks-json-read
+   :error (cl-function
+	   (lambda (&key response &allow-other-keys)
+	     (let ((status (request-response-status-code response))
+		   (error-msg (request-response-error-thrown response)))
+	       (message "Status code: %s" (number-to-string status))
+	       (message "%s" (pp-to-string error-msg)))))
+   :sync t))
+
+(defun org-gtasks-delete (account)
+  (org-gtasks-check-token account)
+  (org-gtasks-get-taskslists account)
+  (let ((tasklists (org-gtasks-tasklists account)))
+    (when tasklists
+      (mapc (lambda (tasklist)
+	      (org-gtasks-get-tasks account tasklist)
+	      (let* ((dir (org-gtasks-directory account))
+		     (title (tasklist-title tasklist))
+		     (tasks (tasklist-tasks tasklist))
+		     (file (format "%s%s.org" dir title))
+		     list-id)
+		(with-current-buffer (find-file-noselect file)
+		  (org-element-map (org-element-parse-buffer) 'headline
+		    (lambda (hl)
+		      (setq list-id (append list-id `(,(org-element-property :ID hl)))))))
+		(mapc (lambda (task)
+			(let ((task-id (plist-get task :id))
+			      (tasklist-id (tasklist-id tasklist)))
+			  (unless (member task-id list-id)
+			    (org-gtasks-delete-task account tasklist-id task-id))))
+		      tasks)))
+	    tasklists)))
+  (message "Delete done"))
+
 (defun org-gtasks-push (account)
   ;; FIXME, force to refresh access token since org-gtasks-post doesn't handle
   ;; properly the refresh ...
@@ -320,7 +362,8 @@
 
 (defvar org-gtasks-actions
   '(("Push" . org-gtasks-push)
-    ("Pull" . org-gtasks-pull)))
+    ("Pull" . org-gtasks-pull)
+    ("Delete" . org-gtasks-delete)))
 
 (defun org-gtasks (action)
   (interactive (list (completing-read "Org gtasks: "
