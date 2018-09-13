@@ -238,7 +238,7 @@
 			 (string= (plist-get task :id) id))
 		       tasks) :id))
 
-(defun org-gtasks-post (account tasklist title notes status id completed)
+(defun org-gtasks-push-task (account tasklist title notes status id completed)
   (let* ((tasklist-id (tasklist-id tasklist))
 	 (url (format "%s/lists/%s/tasks" org-gtasks-default-url tasklist-id))
 	 (data-list `(("title" . ,title)
@@ -292,7 +292,7 @@
 						       (plist-get (cadr hl) :contents-begin)
 						       (plist-get (cadr hl) :contents-end)))
 			  "")))
-	    (org-gtasks-post account tasklist title notes status id completed)))))))
+	    (org-gtasks-push-task account tasklist title notes status id completed)))))))
 
 (defun org-gtasks-delete-task (account tasklist-id task-id)
   (request
@@ -347,7 +347,7 @@
       (message "Fetch %s done" (org-gtasks-name account)))))
 
 (defun org-gtasks-push (account)
-  ;; FIXME, force to refresh access token since org-gtasks-post doesn't handle
+  ;; FIXME, force to refresh access token since org-gtasks-push-task doesn't handle
   ;; properly the refresh ...
   (setf (org-gtasks-access-token org-gtasks-account) nil)
   (org-gtasks-fetch account)
