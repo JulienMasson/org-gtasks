@@ -247,10 +247,7 @@
     (when completed
       (add-to-list 'data-list `("completed" . ,completed)))
     (request
-     (concat
-      url
-      (when id
-	(concat "/" id)))
+     (concat url (when id (concat "/" id)))
      :type (if id "PATCH" "POST")
      :headers '(("Content-Type" . "application/json"))
      :data (json-encode data-list)
@@ -262,14 +259,8 @@
 	     (lambda (&key response &allow-other-keys)
 	       (let ((status (request-response-status-code response))
 		     (error-msg (request-response-error-thrown response)))
-		 (cond
-		  ((eq status 401)
-		   (message "Received HTTP 401")
-		   (message "OAuth token expired. Now trying to refresh-token")
-		   (org-gtasks-get-access-token))
-		  (t
-		   (message "Status code: %s" (number-to-string status))
-		   (message "%s" (pp-to-string error-msg))))))))))
+		 (message "Status code: %s" (number-to-string status))
+		 (message "%s" (pp-to-string error-msg))))))))
 
 (defun org-gtasks-push-tasklist (account tasklist)
   (let* ((dir (org-gtasks-directory account))
@@ -304,6 +295,9 @@
 	    (org-gtasks-post account tasklist title notes status id completed)))))))
 
 (defun org-gtasks-push (account)
+  ;; FIXME, force to refresh access token since org-gtasks-post doesn't handle
+  ;; properly the refresh ...
+  (setf (org-gtasks-access-token org-gtasks-account) nil)
   (org-gtasks-check-token account)
   (org-gtasks-get-taskslists account)
   (let ((tasklists (org-gtasks-tasklists account)))
