@@ -267,7 +267,8 @@
 	 (title (tasklist-title tasklist))
 	 (tasks (tasklist-tasks tasklist))
 	 ;; TODO add file name in defstruct
-	 (file (format "%s%s.org" dir title)))
+	 (file (format "%s%s.org" dir title))
+	 list-id)
     (with-current-buffer (find-file-noselect file)
       (org-element-map (org-element-parse-buffer) 'headline
 	(lambda (hl)
@@ -308,8 +309,7 @@
 	     (let ((status (request-response-status-code response))
 		   (error-msg (request-response-error-thrown response)))
 	       (message "Status code: %s" (number-to-string status))
-	       (message "%s" (pp-to-string error-msg)))))
-   :sync t))
+	       (message "%s" (pp-to-string error-msg)))))))
 
 (defun org-gtasks-delete (account)
   (org-gtasks-check-token account)
