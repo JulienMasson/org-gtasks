@@ -206,6 +206,8 @@
 			 (mapcar (lambda (lst)
 				   (org-gtasks-task lst))
 				 tasks) ""))
+      (goto-char (point-min))
+      (org-sort-entries nil ?o)
       (org-set-startup-visibility)
       (save-buffer))))
 
