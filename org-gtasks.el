@@ -326,22 +326,29 @@
 	  tasks)))
 
 (defun org-gtasks-create-tasklist (account name)
-  (request
-   (concat org-gtasks-default-url "/users/@me/lists")
-   :type "POST"
-   :headers '(("Content-Type" . "application/json"))
-   :data (json-encode `(("title" . ,name)))
-   :params `(("access_token" . ,(org-gtasks-access-token account))
-	     ("key" . ,(org-gtasks-client-secret account))
-	     ("grant_type" . "authorization_code"))
-   :parser 'org-gtasks-json-read
-   :error (cl-function
-	   (lambda (&key response &allow-other-keys)
-	     (let ((status (request-response-status-code response))
-		   (error-msg (request-response-error-thrown response)))
-	       (message "Status code: %s" (number-to-string status))
-	       (message "%s" (pp-to-string error-msg)))))
-   :sync t))
+  (let* ((response (request
+		    (concat org-gtasks-default-url "/users/@me/lists")
+		    :type "POST"
+		    :headers '(("Content-Type" . "application/json"))
+		    :data (json-encode `(("title" . ,name)))
+		    :params `(("access_token" . ,(org-gtasks-access-token account))
+			      ("key" . ,(org-gtasks-client-secret account))
+			      ("grant_type" . "authorization_code"))
+		    :parser 'org-gtasks-json-read
+		    :error (cl-function
+			    (lambda (&key response &allow-other-keys)
+			      (let ((status (request-response-status-code response))
+				    (error-msg (request-response-error-thrown response)))
+				(message "Status code: %s" (number-to-string status))
+				(message "%s" (pp-to-string error-msg)))))
+		    :sync t))
+	 (data (request-response-data response)))
+    (when (and (plist-member data :title)
+	       (plist-member data :id))
+      (let ((title (plist-get data :title))
+	    (id (plist-get data :id)))
+	(push (make-tasklist :title title :id id)
+	      (org-gtasks-tasklists account))))))
 
 (defun org-gtasks-delete-tasklist (account id)
   (request
@@ -357,25 +364,23 @@
 	     (let ((status (request-response-status-code response))
 		   (error-msg (request-response-error-thrown response)))
 	       (message "Status code: %s" (number-to-string status))
-	       (message "%s" (pp-to-string error-msg)))))
-   :sync t))
+	       (message "%s" (pp-to-string error-msg)))))))
 
 (defun org-gtasks-check-tasklists (account)
   (let* ((dir (org-gtasks-directory account))
+	 (tasklists (org-gtasks-tasklists account))
 	 (local-files (seq-filter (lambda (str)
 				    (string-match "\\.org$" str))
 				  (directory-files dir)))
 	 (files (mapcar (lambda (tasklist)
 			  (format "%s.org" (tasklist-title tasklist)))
-			(org-gtasks-tasklists account)))
-	 (re-sync nil))
+			tasklists)))
     ;; create taskslist
     (mapc (lambda (file)
 	    (unless (seq-find (lambda (f)
 				(string= f file))
 			      files)
-	      (org-gtasks-create-tasklist account (file-name-base file))
-	      (setq re-sync t)))
+	      (org-gtasks-create-tasklist account (file-name-base file))))
 	  local-files)
     ;; delete tasklist
     (mapc (lambda (tasklist)
@@ -385,10 +390,9 @@
 				  (string= f file))
 				local-files)
 		(org-gtasks-delete-tasklist account id)
-		(setq re-sync t))))
-	  (org-gtasks-tasklists account))
-    (when re-sync
-      (org-gtasks-get-taskslists account))))
+		(setf (org-gtasks-tasklists account)
+		      (delete tasklist tasklists)))))
+	  tasklists)))
 
 (defun org-gtasks-fetch (account)
   (org-gtasks-check-token account)
