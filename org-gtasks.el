@@ -45,6 +45,7 @@
 
 (cl-defstruct tasklist
   title
+  file
   id
   tasks)
 
@@ -188,15 +189,16 @@
     (when (plist-member data :items)
       (setf (org-gtasks-tasklists account)
 	    (mapcar (lambda (item)
-		      (let ((title (plist-get item :title))
-			    (id (plist-get item :id)))
-			(make-tasklist :title title :id id)))
+		      (let* ((title (plist-get item :title))
+			     (file (format "%s.org" title))
+			     (id (plist-get item :id)))
+			(make-tasklist :title title :file file :id id)))
 		    (plist-get data :items))))))
 
 (defun org-gtasks-write-to-org (account tasklist)
-  (let* ((dir (org-gtasks-directory account))
+  (let* ((default-directory (org-gtasks-directory account))
+	 (file (tasklist-file tasklist))
 	 (title (tasklist-title tasklist))
-	 (file (format "%s%s.org" dir title))
 	 (header (format "#+FILETAGS: :%s:\n" title))
 	 (tasks (tasklist-tasks tasklist)))
     (with-current-buffer (find-file-noselect file)
@@ -276,12 +278,11 @@
     "POST"))
 
 (defun org-gtasks-push-tasklist (account tasklist)
-  (let* ((dir (org-gtasks-directory account))
-	 (title (tasklist-title tasklist))
-	 (tasks (tasklist-tasks tasklist))
-	 ;; TODO add file name in defstruct
-	 (file (format "%s%s.org" dir title))
-	 list-id)
+  (let ((default-directory (org-gtasks-directory account))
+	(file (tasklist-file tasklist))
+	(title (tasklist-title tasklist))
+	(tasks (tasklist-tasks tasklist))
+	list-id)
     (with-current-buffer (find-file-noselect file)
       (org-element-map (org-element-parse-buffer) 'headline
 	(lambda (hl)
@@ -372,9 +373,7 @@
 	 (local-files (seq-filter (lambda (str)
 				    (string-match "\\.org$" str))
 				  (directory-files dir)))
-	 (files (mapcar (lambda (tasklist)
-			  (format "%s.org" (tasklist-title tasklist)))
-			tasklists)))
+	 (files (mapcar 'tasklist-file tasklists)))
     ;; create taskslist
     (mapc (lambda (file)
 	    (unless (seq-find (lambda (f)
@@ -384,7 +383,7 @@
 	  local-files)
     ;; delete tasklist
     (mapc (lambda (tasklist)
-	    (let ((file (format "%s.org" (tasklist-title tasklist)))
+	    (let ((file (tasklist-file tasklist))
 		  (id (tasklist-id tasklist)))
 	      (unless (seq-find (lambda (f)
 				  (string= f file))
