@@ -397,7 +397,6 @@
 (defun org-gtasks-fetch (account)
   (org-gtasks-check-token account)
   (org-gtasks-get-taskslists account)
-  (org-gtasks-check-tasklists account)
   (let ((tasklists (org-gtasks-tasklists account)))
     (when tasklists
       (mapc (lambda (tasklist)
@@ -410,6 +409,7 @@
   ;; properly the refresh ...
   (setf (org-gtasks-access-token org-gtasks-account) nil)
   (org-gtasks-fetch account)
+  (org-gtasks-check-tasklists account)
   (let ((tasklists (org-gtasks-tasklists account)))
     (when tasklists
       (mapc (lambda (tasklist)
