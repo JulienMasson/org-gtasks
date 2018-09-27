@@ -452,7 +452,8 @@
 
 (defun org-gtasks-register-account (&rest plist)
   (let ((name (plist-get plist :name))
-	(directory (plist-get plist :directory))
+	(directory (file-name-as-directory
+		    (expand-file-name (plist-get plist :directory))))
 	(client-id (plist-get plist :client-id))
 	(client-secret (plist-get plist :client-secret)))
     (unless (file-directory-p directory)
