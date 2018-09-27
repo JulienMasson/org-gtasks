@@ -32,7 +32,7 @@
 
 (defconst org-gtasks-default-url "https://www.googleapis.com/tasks/v1")
 
-(defvar org-gtasks-account nil)
+(defvar org-gtasks-accounts nil)
 
 (cl-defstruct org-gtasks
   (name nil :read-only t)
@@ -430,12 +430,25 @@
   '(("Push" . org-gtasks-push)
     ("Pull" . org-gtasks-pull)))
 
-(defun org-gtasks (action)
-  (interactive (list (completing-read "Org gtasks: "
-				      (mapcar 'car org-gtasks-actions))))
-  (let ((func (assoc-default action org-gtasks-actions)))
+(defun org-gtasks ()
+  (interactive)
+  (let* ((name (completing-read "Select Account: "
+				(mapcar (lambda (account)
+					  (org-gtasks-name account))
+					org-gtasks-accounts)))
+	 (account (seq-find (lambda (account)
+			      (string= (org-gtasks-name account) name))
+			    org-gtasks-accounts))
+	 (action (completing-read (format "Action (%s): " name)
+				  (mapcar 'car org-gtasks-actions)))
+	 (func (assoc-default action org-gtasks-actions)))
     (if (functionp func)
-	(funcall func org-gtasks-account))))
+	(funcall func account))))
+
+(defun org-gtasks-account-eq (a1 a2)
+  (when (and (org-gtasks-p a1) (org-gtasks-p a2))
+    (or (string= (org-gtasks-name a1) (org-gtasks-name a2))
+	(string= (org-gtasks-directory a1) (org-gtasks-directory a2)))))
 
 (defun org-gtasks-register-account (&rest plist)
   (let ((name (plist-get plist :name))
@@ -444,10 +457,12 @@
 	(client-secret (plist-get plist :client-secret)))
     (unless (file-directory-p directory)
       (make-directory directory))
-    (setq org-gtasks-account (make-org-gtasks :name name
-					      :directory directory
-					      :client-id client-id
-					      :client-secret client-secret))))
+    (add-to-list 'org-gtasks-accounts
+		 (make-org-gtasks :name name
+				  :directory directory
+				  :client-id client-id
+				  :client-secret client-secret)
+		 t 'org-gtasks-account-eq)))
 
 
 (provide 'org-gtasks)
