@@ -406,7 +406,7 @@
 (defun org-gtasks-push (account)
   ;; FIXME, force to refresh access token since org-gtasks-push-task doesn't handle
   ;; properly the refresh ...
-  (setf (org-gtasks-access-token org-gtasks-account) nil)
+  (setf (org-gtasks-access-token account) nil)
   (org-gtasks-fetch account)
   (org-gtasks-check-tasklists account)
   (let ((tasklists (org-gtasks-tasklists account)))
