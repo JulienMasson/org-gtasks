@@ -1,15 +1,60 @@
 * Org-Gtasks
-Export all Google Tasks to org file.
+Export/import all Google Tasks to org files.
 
-This module has been HIGHLY inspired by [[https://github.com/myuhe/org-gcal.el][org-gcal]]
+This module has been HIGHLY inspired by [[https://github.com/myuhe/org-gcal.el][org-gcal]].
 
+`org-gtasks` will
+- sync all the task lists you have into org files, one per list
+- map `TODO` and `DONE` status to the same on Google Tasks
 
-** Config
+** Obtaining Google credentials
+
+1. Go to [[https://console.developers.google.com/project][Google Developers Console]]
+2. Create a project (with any name)
+3. Click on the project
+4. Click on *APIs & Services* then *Credentials*
+5. Click on *Create credentials* and select *OAuth Client ID*
+6. Select Application type /Other/ and give a name (e.g. /emacs/)
+6. Click on *Create*
+7. Copy the /Client ID/ and /Client secret/ into the relevant fields in the config (see below)
+8. Under the same *APIs & Services* menu section, select *Library*
+9. Search for *Tasks API*, click on it and click *Enable*
+
+You have now a project that accepts OAuth credentials and anables
+the /Tasks API/ for them.
+
+** Setup and config
 
 #+begin_src elisp
 (require 'org-gtasks)
 (org-gtasks-register-account :name "Perso"
-			     :directory "~/.emacs.d/gtasks/"
+                             :directory "~/.emacs.d/gtasks/"
                              :client-id "XXXX"
                              :client-secret "XXXX")
 #+end_src
+
+The first time you use `org-gtasks`, you need to authenticate.
+These are the steps you will go through:
+
+1. Make sure Emacs has read your config. Then, `M-x org-gtasks`
+   will show a prompt asking for the account. Enter its name,
+   e.g. /Perso/ as in the example config above.
+2. It will ask for the action, enter /Pull/. The actions are /Push/
+   and /Pull/ (defined in `org-gtasks-actions`).
+3. It will open your browser, and ask you to login. Then it will show
+   a code, that you need to ...
+4. ... paste into the minibuffer where it asks about it.
+
+You're done! You should now find one file per task list in the
+directory you have configured.
+
+** Usage
+
+Type `M-x org-gtasks`, enter the account name, the action
+(/Push/, /Pull/), and the operation takes a few seconds and you
+are done.
+
+** Limitations
+
+Currently, `org-gtasks` does not yet sync the dates, nor does it
+understand or map the hierachical structure of tasks.
