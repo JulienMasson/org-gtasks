@@ -73,7 +73,7 @@
 	(error-msg (request-response-error-thrown response)))
     (cond
      ((eq status nil)
-      (message "Please check your network connectivity"))
+      (error "Please check your network connectivity"))
      ((eq 401 (or (plist-get (plist-get data :error) :code)
                   status))
       (message "OAuth token expired. refresh access token")
@@ -81,13 +81,13 @@
       (if (functionp func)
 	  (apply func args)))
      ((eq 403 status)
-      (message "Ensure you enabled the Tasks API through the Developers Console"))
+      (error "Ensure you enabled the Tasks API through the Developers Console"))
      ((and (> 299 status) (eq data nil))
       (message "Received HTTP: %s" (number-to-string status))
-      (message "Error occured, but no message body."))
+      (error "Error occured, but no message body."))
      ((not (eq error-msg nil))
       (message "Status code: %s" (number-to-string status))
-      (message "%s" (pp-to-string error-msg))))))
+      (error "%s" (pp-to-string error-msg))))))
 
 (defun org-gtasks-get-refresh-token (account)
   (let* ((response (request
