@@ -85,7 +85,7 @@
       (error "Ensure you enabled the Tasks API through the Developers Console"))
      ((and (> 299 status) (eq data nil))
       (message "Received HTTP: %s" (number-to-string status))
-      (error "Error occured, but no message body."))
+      (error "Error occurred, but no message body."))
      ((not (eq error-msg nil))
       (message "Status code: %s" (number-to-string status))
       (error "%s" (pp-to-string error-msg))))))
