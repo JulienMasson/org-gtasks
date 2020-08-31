@@ -161,7 +161,6 @@
 		    url
 		    :type "GET"
 		    :params `(("access_token" . ,(org-gtasks-access-token account))
-			      ("key" . ,(org-gtasks-client-secret account))
 			      ("singleEvents" . "True")
 			      ("orderBy" . "startTime")
 			      ("grant_type" . "authorization_code"))
@@ -179,7 +178,6 @@
 		    url
 		    :type "GET"
 		    :params `(("access_token" . ,(org-gtasks-access-token account))
-			      ("key" . ,(org-gtasks-client-secret account))
 			      ("singleEvents" . "True")
 			      ("orderBy" . "startTime")
 			      ("grant_type" . "authorization_code"))
@@ -258,7 +256,6 @@
    :headers '(("Content-Type" . "application/json"))
    :data (json-encode data-list)
    :params `(("access_token" . ,(org-gtasks-access-token account))
-	     ("key" . ,(org-gtasks-client-secret account))
 	     ("grant_type" . "authorization_code"))
    :parser 'org-gtasks-json-read
    :error (cl-function
@@ -274,7 +271,6 @@
    :type "DELETE"
    :headers '(("Content-Type" . "application/json"))
    :params `(("access_token" . ,(org-gtasks-access-token account))
-	     ("key" . ,(org-gtasks-client-secret account))
 	     ("grant_type" . "authorization_code"))
    :parser 'org-gtasks-json-read
    :error (cl-function
@@ -365,7 +361,6 @@
 		    :headers '(("Content-Type" . "application/json"))
 		    :data (json-encode `(("title" . ,name)))
 		    :params `(("access_token" . ,(org-gtasks-access-token account))
-			      ("key" . ,(org-gtasks-client-secret account))
 			      ("grant_type" . "authorization_code"))
 		    :parser 'org-gtasks-json-read
 		    :error (cl-function
@@ -389,7 +384,6 @@
    :type "DELETE"
    :headers '(("Content-Type" . "application/json"))
    :params `(("access_token" . ,(org-gtasks-access-token account))
-	     ("key" . ,(org-gtasks-client-secret account))
 	     ("grant_type" . "authorization_code"))
    :parser 'org-gtasks-json-read
    :error (cl-function
