@@ -26,16 +26,16 @@
 (require 'request)
 (require 'cl-lib)
 
-(defconst org-gtasks-token-url "https://www.googleapis.com/oauth2/v3/token"
+(defconst org-gtasks-token-url "https://oauth2.googleapis.com/token"
   "Google OAuth2 server URL.")
 
-(defconst org-gtasks-auth-url "https://accounts.google.com/o/oauth2/auth"
+(defconst org-gtasks-auth-url "https://accounts.google.com/o/oauth2/v2/auth"
   "Google OAuth2 server URL.")
 
 (defconst org-gtasks-resource-url "https://www.googleapis.com/auth/tasks"
   "URL used to request access to tasks resources.")
 
-(defconst org-gtasks-default-url "https://www.googleapis.com/tasks/v1")
+(defconst org-gtasks-default-url "https://tasks.googleapis.com/tasks/v1")
 
 (defvar org-gtasks-accounts nil)
 
@@ -69,6 +69,7 @@
                       "?client_id=" (url-hexify-string (org-gtasks-client-id account))
                       "&response_type=code"
                       "&redirect_uri=" (url-hexify-string "urn:ietf:wg:oauth:2.0:oob")
+                      "&access_type=offline"
                       "&scope=" (url-hexify-string org-gtasks-resource-url)))
   (read-string "Enter the code your browser displayed: "))
 
@@ -165,7 +166,6 @@
 		    url
 		    :type "GET"
 		    :params `(("access_token" . ,(org-gtasks-access-token account))
-			      ("key" . ,(org-gtasks-client-secret account))
 			      ("singleEvents" . "True")
 			      ("orderBy" . "startTime")
 			      ("grant_type" . "authorization_code"))
@@ -183,7 +183,6 @@
 		    url
 		    :type "GET"
 		    :params `(("access_token" . ,(org-gtasks-access-token account))
-			      ("key" . ,(org-gtasks-client-secret account))
 			      ("singleEvents" . "True")
 			      ("orderBy" . "startTime")
 			      ("grant_type" . "authorization_code"))
@@ -502,3 +501,8 @@
 
 
 (provide 'org-gtasks)
+
+;; Local Variables:
+;; indent-tabs-mode: nil
+;; tab-width: 8
+;; End:
