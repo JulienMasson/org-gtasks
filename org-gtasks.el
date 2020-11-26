@@ -407,7 +407,7 @@
 			    :params  `(("access_token" . ,(org-gtasks-access-token account))
 				       ("grant_type"   . "authorization_code"))))
 
-(defun org-gtasks-push-tasks (account tasks tasklists done &optional response)
+(defun org-gtasks-push-tasks (account tasks tasklists done &optional data)
   (if tasks
       (pcase-let ((`(,url ,type ,data) (pop tasks)))
 	(org-gtasks-request-push account url
@@ -462,7 +462,7 @@
 			       (apply-partially #'org-gtasks-add-tasklists
 						account add-data))))
 
-(defun org-gtasks-add-tasklists (account add-data &optional response)
+(defun org-gtasks-add-tasklists (account add-data &optional data)
   (if add-data
       (pcase-let ((`(,url ,type ,data) (pop add-data)))
 	(org-gtasks-request-push account url
@@ -496,7 +496,7 @@
 	(push (list tasklist url "DELETE") data)))
     data))
 
-(defun org-gtasks-remove-tasklists (account remove-data &optional response)
+(defun org-gtasks-remove-tasklists (account remove-data &optional data)
   (if remove-data
       (pcase-let ((`(,tasklist ,url ,type) (pop remove-data)))
 	(setf (org-gtasks-tasklists account)
