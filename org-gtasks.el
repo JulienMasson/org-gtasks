@@ -274,17 +274,17 @@
         (org-set-startup-visibility))
       (save-buffer))))
 
-(defun org-gtasks-tags-cb (account tasklist data)
+(defun org-gtasks-tasks-cb (account tasklist data)
   (setf (tasklist-tasks tasklist) (array-to-list (plist-get data :items)))
   (org-gtasks-write-to-org account tasklist))
 
-(defun org-gtasks-fetch-tags (account tasklist)
+(defun org-gtasks-fetch-tasks (account tasklist)
   (let ((title (tasklist-title tasklist))
 	(id (tasklist-id tasklist)))
     (message "Pulling %s ..." (propertize title 'face 'success))
     (org-gtasks-request-fetch account
 			      (format "%s/lists/%s/tasks" org-gtasks-default-url id)
-			      (apply-partially #'org-gtasks-tags-cb account tasklist))))
+			      (apply-partially #'org-gtasks-tasks-cb account tasklist))))
 
 (defun org-gtasks-tasklists-cb (account data)
   (when (plist-member data :items)
@@ -294,7 +294,7 @@
 	     (id (plist-get item :id))
 	     (tasklist (make-tasklist :title title :file file :id id)))
 	(push tasklist (org-gtasks-tasklists account))
-	(org-gtasks-fetch-tags account tasklist)))))
+	(org-gtasks-fetch-tasks account tasklist)))))
 
 (defun org-gtasks-fetch-tasklists (account)
   (setf (org-gtasks-tasklists account) nil)
@@ -310,7 +310,7 @@
     (if (string= target "ALL")
 	(org-gtasks-fetch-tasklists account)
       (when-let ((tasklist (org-gtasks-find-tasklist tasklists target)))
-	(org-gtasks-fetch-tags account tasklist)))))
+	(org-gtasks-fetch-tasks account tasklist)))))
 
 ;; push
 (defun org-gtasks-format-iso2org (str)
@@ -439,7 +439,7 @@
 						    account))
       (when-let ((tasklist (org-gtasks-find-tasklist tasklists target)))
 	(org-gtasks-push-tasklists account (list tasklist)
-				   (apply-partially #'org-gtasks-fetch-tags
+				   (apply-partially #'org-gtasks-fetch-tasks
 						    account tasklist))))))
 
 ;; add
@@ -453,7 +453,7 @@
     data))
 
 (defun org-gtasks-push-tasklists-cb (account add-data tasklist &optional data)
-  (org-gtasks-fetch-tags account tasklist)
+  (org-gtasks-fetch-tasks account tasklist)
   (org-gtasks-add-tasklists account add-data))
 
 (defun org-gtasks-add-tasklists-cb (account add-data &optional data)
