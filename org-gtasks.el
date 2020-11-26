@@ -274,9 +274,8 @@
       (save-buffer))))
 
 (defun org-gtasks-tags-cb (account tasklist data)
-  (when (plist-member data :items)
-    (setf (tasklist-tasks tasklist) (array-to-list (plist-get data :items)))
-    (org-gtasks-write-to-org account tasklist)))
+  (setf (tasklist-tasks tasklist) (array-to-list (plist-get data :items)))
+  (org-gtasks-write-to-org account tasklist))
 
 (defun org-gtasks-fetch-tags (account tasklist)
   (let ((title (tasklist-title tasklist))
