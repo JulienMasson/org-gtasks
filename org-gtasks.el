@@ -451,6 +451,10 @@
 	    data))
     data))
 
+(defun org-gtasks-push-tasklists-cb (account add-data tasklist &optional data)
+  (org-gtasks-fetch-tags account tasklist)
+  (org-gtasks-add-tasklists account add-data))
+
 (defun org-gtasks-add-tasklists-cb (account add-data &optional data)
   (when-let* ((title (plist-get data :title))
 	      (file (format "%s.org" title))
@@ -459,8 +463,8 @@
     (setf (org-gtasks-tasklists account)
 	  (append (list tasklist) (org-gtasks-tasklists account)))
     (org-gtasks-push-tasklists account (list tasklist)
-			       (apply-partially #'org-gtasks-add-tasklists
-						account add-data))))
+			       (apply-partially #'org-gtasks-push-tasklists-cb
+						account add-data tasklist))))
 
 (defun org-gtasks-add-tasklists (account add-data &optional data)
   (if add-data
@@ -469,7 +473,6 @@
 				 (apply-partially #'org-gtasks-add-tasklists-cb
 						  account add-data)
 				 type data))
-    (org-gtasks-fetch-tasklists account)
     (message "Add done")))
 
 (defun org-gtasks-add (account)
