@@ -429,8 +429,9 @@
 (defun org-gtasks-push (account)
   (let* ((tasklists (org-gtasks-tasklists account))
 	 (collection (mapcar 'tasklist-title tasklists))
-	 (collection (when (> (length collection) 1)
-		       (push "ALL" collection)))
+	 (collection (if (> (length collection) 1)
+                         (append (list "ALL") collection)
+                       collection))
 	 (target (completing-read "Push: " collection)))
     (if (string= target "ALL")
 	(org-gtasks-push-tasklists account tasklists
