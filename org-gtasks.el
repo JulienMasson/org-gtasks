@@ -269,8 +269,9 @@
       (dolist (task tasks)
 	(insert (org-gtasks-task task)))
       (goto-char (point-min))
-      (org-sort-entries nil ?o)
-      (org-set-startup-visibility)
+      (when tasks
+        (org-sort-entries nil ?o)
+        (org-set-startup-visibility))
       (save-buffer))))
 
 (defun org-gtasks-tags-cb (account tasklist data)
