@@ -86,8 +86,12 @@
   (cl-remove-if-not (lambda (file) (string-match "\\.org$" file))
 		    (directory-files (org-gtasks-directory account))))
 
-(defun org-gtasks-find-account (name)
+(defun org-gtasks-find-account-by-name (name)
   (cl-find-if (lambda (account) (string= (org-gtasks-name account) name))
+	      org-gtasks-accounts))
+
+(defun org-gtasks-find-account-by-dir (dir)
+  (cl-find-if (lambda (account) (string= (org-gtasks-directory account) dir))
 	      org-gtasks-accounts))
 
 (defun org-gtasks-find-tasklist (tasklists title)
@@ -302,6 +306,17 @@
 			    (concat org-gtasks-default-url "/users/@me/lists")
 			    (apply-partially #'org-gtasks-tasklists-cb account)))
 
+(defun org-gtasks-pull-current ()
+  (interactive)
+  (if-let* ((file (buffer-file-name))
+            (title (file-name-base file))
+            (dir (file-name-directory file))
+            (account (org-gtasks-find-account-by-dir dir))
+            (tasklists (org-gtasks-tasklists account))
+            (tasklist (org-gtasks-find-tasklist tasklists title)))
+      (org-gtasks-fetch-tasks account tasklist)
+    (message "Cannot pull current tasklist")))
+
 (defun org-gtasks-pull (account)
   (let* ((tasklists (org-gtasks-tasklists account))
 	 (titles (mapcar 'tasklist-title tasklists))
@@ -426,6 +441,19 @@
     (message "Push done")
     (funcall done)))
 
+(defun org-gtasks-push-current ()
+  (interactive)
+  (if-let* ((file (buffer-file-name))
+            (title (file-name-base file))
+            (dir (file-name-directory file))
+            (account (org-gtasks-find-account-by-dir dir))
+            (tasklists (org-gtasks-tasklists account))
+            (tasklist (org-gtasks-find-tasklist tasklists title)))
+      (org-gtasks-push-tasklists account (list tasklist)
+				 (apply-partially #'org-gtasks-fetch-tasks
+						  account tasklist))
+    (message "Cannot push current tasklist")))
+
 (defun org-gtasks-push (account)
   (let* ((tasklists (org-gtasks-tasklists account))
 	 (collection (mapcar 'tasklist-title tasklists))
@@ -529,7 +557,7 @@
   (interactive)
   (when-let* ((collection (mapcar 'org-gtasks-name org-gtasks-accounts))
 	      (name (completing-read "Select Account: " collection))
-	      (account (org-gtasks-find-account name))
+	      (account (org-gtasks-find-account-by-name name))
 	      (action (completing-read (format "Action (%s): " name)
 				       (mapcar 'car org-gtasks-actions)))
 	      (func (assoc-default action org-gtasks-actions)))
