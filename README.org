@@ -1,7 +1,7 @@
 * Org-Gtasks
 Export/import all Google Tasks to org files.
 
-This module has been HIGHLY inspired by [[https://github.com/myuhe/org-gcal.el][org-gcal]].
+This module has been inspired by [[https://github.com/kidd/org-gcal.el][org-gcal]].
 
 =org-gtasks= will
 - sync all the task lists you have into org files, one per list
@@ -27,7 +27,7 @@ org files stored in a particular directory like so:
 3. Click on the project
 4. Click on *APIs & Services* then *Credentials*
 5. Click on *Create credentials* and select *OAuth Client ID*
-6. Select Application type /Other/ and give a name (e.g. /emacs/)
+6. Select Application type /Desktop/ and give a name (e.g. /emacs/)
 6. Click on *Create*
 7. Copy the /Client ID/ and /Client secret/ into the relevant fields in the config (see below)
 8. Under the same *APIs & Services* menu section, select *Library*
@@ -57,9 +57,14 @@ directory you have configured.
 Type ~M-x org-gtasks~, enter the account name, an action,
 and the operation takes a few seconds and you are done.
 
-Possible actions are /Push/ and /Pull/ (defined in ~org-gtasks-actions~).
+Possible actions are: (defined in ~org-gtasks-actions~)
+| Actions  | Descriptions                                    |
+|----------+-------------------------------------------------|
+| *Push*   | push one or all taskslists                      |
+| *Pull*   | pull one or all taskslists                      |
+| *Add*    | add taskslists on the gtasks account            |
+| *Remove* | remove taskslists present on the gtasks account |
 
 ** Limitations
 
-Currently, ~org-gtasks~ does not yet sync the dates, nor does it
-understand or map the hierachical structure of tasks.
+Currently, ~org-gtasks~ does not understand or map the hierachical structure of tasks.
