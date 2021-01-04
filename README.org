@@ -27,6 +27,27 @@ org files stored in a particular directory like so:
 3. Click on the project
 4. Click on *APIs & Services* then *Credentials*
 5. Click on *Create credentials* and select *OAuth Client ID*
+6. Select Application type /Other/ and give a name (e.g. /emacs/)
+6. Click on *Create*
+7. Copy the /Client ID/ and /Client secret/ into the relevant fields in the config (see below)
+8. Under the same *APIs & Services* menu section, select *Library*
+9. Search for *Tasks API*, click on it and click *Enable*
+
+You have now a project that accepts OAuth credentials and enables
+the /Tasks API/ for them.
+
+** Setup
+
+You can define an account, identified by its /name/ and with
+org files stored in a particular directory like so:
+
+** Obtaining Google credentials
+
+1. Go to [[https://console.developers.google.com/project][Google Developers Console]]
+2. Create a project (with any name)
+3. Click on the project
+4. Click on *APIs & Services* then *Credentials*
+5. Click on *Create credentials* and select *OAuth Client ID*
 6. Select Application type /Desktop/ and give a name (e.g. /emacs/)
 6. Click on *Create*
 7. Copy the /Client ID/ and /Client secret/ into the relevant fields in the config (see below)
