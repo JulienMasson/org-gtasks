@@ -317,11 +317,13 @@
       (org-gtasks-fetch-tasks account tasklist)
     (message "Cannot pull current tasklist")))
 
-(defun org-gtasks-pull (account)
+(defun org-gtasks-pull (account &optional listname)
   (let* ((tasklists (org-gtasks-tasklists account))
 	 (titles (mapcar 'tasklist-title tasklists))
 	 (collection (append (list "ALL") titles))
-	 (target (completing-read "Pull: " collection)))
+	 (target (if (eq listname nil)
+                     (completing-read "Pull: " collection)
+                   listname)))
     (if (string= target "ALL")
 	(org-gtasks-fetch-tasklists account)
       (when-let ((tasklist (org-gtasks-find-tasklist tasklists target)))
@@ -454,13 +456,15 @@
 						  account tasklist))
     (message "Cannot push current tasklist")))
 
-(defun org-gtasks-push (account)
+(defun org-gtasks-push (account &optional listname)
   (let* ((tasklists (org-gtasks-tasklists account))
 	 (collection (mapcar 'tasklist-title tasklists))
 	 (collection (if (> (length collection) 1)
                          (append (list "ALL") collection)
                        collection))
-	 (target (completing-read "Push: " collection)))
+	 (target (if (eq listname nil)
+                     (completing-read "Push: " collection)
+                   listname)))
     (if (string= target "ALL")
 	(org-gtasks-push-tasklists account tasklists
 				   (apply-partially #'org-gtasks-fetch-tasklists
