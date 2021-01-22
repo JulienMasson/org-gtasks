@@ -33,7 +33,7 @@ org files stored in a particular directory like so:
 8. Under the same *APIs & Services* menu section, select *Library*
 9. Search for *Tasks API*, click on it and click *Enable*
 
-You have now a project that accepts OAuth credentials and anables
+You have now a project that accepts OAuth credentials and enables
 the /Tasks API/ for them.
 
 ** Setup
@@ -51,6 +51,9 @@ These are the steps you will go through:
 
 You're done! You should now find one file per task list in the
 directory you have configured.
+
+*Note*: the OAuth token file is stored in the directory where the org
+files are written, named =.refresh-token=
 
 ** Usage
 
