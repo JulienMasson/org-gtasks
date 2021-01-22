@@ -462,7 +462,7 @@
 	 (collection (if (> (length collection) 1)
                          (append (list "ALL") collection)
                        collection))
-	 (target (if (eq listname nil)
+	 (target (if (null listname)
                      (completing-read "Push: " collection)
                    listname)))
     (if (string= target "ALL")
