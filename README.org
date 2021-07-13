@@ -32,6 +32,7 @@ org files stored in a particular directory like so:
 7. Copy the /Client ID/ and /Client secret/ into the relevant fields in the config (see below)
 8. Under the same *APIs & Services* menu section, select *Library*
 9. Search for *Tasks API*, click on it and click *Enable*
+10. Add yourself as /Test users/ in *OAuth consent screen*.
 
 You have now a project that accepts OAuth credentials and enables
 the /Tasks API/ for them.
