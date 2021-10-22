@@ -236,6 +236,7 @@
 (defun org-gtasks-task (plst)
   (let* ((id  (plist-get plst :id))
 	 (title  (plist-get plst :title))
+	 (due (plist-get plst :due))
 	 (notes  (plist-get plst :notes))
 	 (links  (plist-get plst :links))
 	 (status (if (string= "completed" (plist-get plst :status))
@@ -243,6 +244,8 @@
 		   "TODO"))
 	 (completed (plist-get plst :completed)))
     (concat (format "* %s %s\n" status title)
+	    (when due
+	      (format "  DEADLINE: <%s>\n" (org-gtasks-format-iso2org due)))
 	    (when completed
 	      (format "  CLOSED: [%s]\n" (org-gtasks-format-iso2org completed)))
 	    "  :PROPERTIES:\n"
@@ -392,14 +395,17 @@
 				(if (string= type "PATCH") (concat "/" id))))
 		   (title (substring-no-properties (org-element-interpret-data
 						    (org-element-property :title hl))))
+		   (org2iso (lambda (e)
+			      (org-gtasks-format-org2iso
+			       (plist-get e :year-start)
+			       (plist-get e :month-start)
+			       (plist-get e :day-start)
+			       (plist-get e :hour-start)
+			       (plist-get e :minute-start))))
+		   (deadline (org-element-property :deadline hl))
+		   (due (when deadline (funcall org2iso (cadr deadline))))
 		   (closed (org-element-property :closed hl))
-		   (completed (when closed
-				(org-gtasks-format-org2iso
-				 (plist-get (cadr closed) :year-start)
-				 (plist-get (cadr closed) :month-start)
-				 (plist-get (cadr closed) :day-start)
-				 (plist-get (cadr closed) :hour-start)
-				 (plist-get (cadr closed) :minute-start))))
+		   (completed (when closed (funcall org2iso (cadr closed))))
 		   (status (if (string= (org-element-property :todo-type hl) "done")
 			       "completed"
 			     "needsAction"))
@@ -411,6 +417,7 @@
 				("status" . ,status))))
 	      (when (and completed (not (org-gtasks-task-completed tasks id)))
 		(add-to-list 'data-list `("completed" . ,completed)))
+	      (add-to-list 'data-list `("due" . ,due))
 	      (if (assoc id initial-data)
 		  (setcdr (assoc id initial-data) (list url type data-list))
 		(push (list url type data-list) tasklist-data)))))))
