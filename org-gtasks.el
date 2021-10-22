@@ -337,7 +337,8 @@
   (format-time-string "%Y-%m-%d %a %H:%M" (date-to-time str)))
 
 (defun org-gtasks-format-org2iso (year mon day hour min)
-  (let ((seconds (time-to-seconds (encode-time 0 min hour day mon year))))
+  (let ((seconds (time-to-seconds (encode-time 0 (if min min 0) (if hour hour 0)
+					       day mon year))))
     (concat (format-time-string "%Y-%m-%dT%H:%M" (seconds-to-time seconds))
 	    ":00Z")))
 
