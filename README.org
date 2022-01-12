@@ -62,12 +62,13 @@ Type ~M-x org-gtasks~, enter the account name, an action,
 and the operation takes a few seconds and you are done.
 
 Possible actions are: (defined in ~org-gtasks-actions~)
-| Actions  | Descriptions                                    |
-|----------+-------------------------------------------------|
-| *Push*   | push one or all taskslists                      |
-| *Pull*   | pull one or all taskslists                      |
-| *Add*    | add taskslists on the gtasks account            |
-| *Remove* | remove taskslists present on the gtasks account |
+| Actions  | Descriptions                                       |
+|----------+----------------------------------------------------|
+| *Push*   | push one or all taskslists                         |
+| *Fetch*  | fetch one or all taskslists (org file not updated) |
+| *Pull*   | pull one or all taskslists                         |
+| *Add*    | add taskslists on the gtasks account               |
+| *Remove* | remove taskslists present on the gtasks account    |
 
 ** Limitations
 

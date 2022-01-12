@@ -62,6 +62,7 @@
   "Matches an entire org-gtasks links drawer.")
 
 (defvar org-gtasks-actions '(("Push"   . org-gtasks-push)
+			     ("Fetch"  . org-gtasks-fetch)
 			     ("Pull"   . org-gtasks-pull)
 			     ("Add"    . org-gtasks-add)
 			     ("Remove" . org-gtasks-remove)))
@@ -224,7 +225,7 @@
     (unless access-token
       (setf (org-gtasks-access-token account) (org-gtasks-get-access-token account)))))
 
-;; pull
+;; fetch
 (defun org-gtasks-request-fetch (account url cb)
   (org-gtasks-request-async account url cb
 			    :type "GET"
@@ -281,19 +282,21 @@
         (org-set-startup-visibility))
       (save-buffer))))
 
-(defun org-gtasks-tasks-cb (account tasklist data)
+(defun org-gtasks-tasks-cb (account tasklist write-p data)
   (setf (tasklist-tasks tasklist) (array-to-list (plist-get data :items)))
-  (org-gtasks-write-to-org account tasklist))
+  (message "Fetch %s done" (propertize (tasklist-title tasklist) 'face 'success))
+  (when write-p
+    (org-gtasks-write-to-org account tasklist)))
 
-(defun org-gtasks-fetch-tasks (account tasklist)
+(defun org-gtasks-fetch-tasks (account write-p tasklist)
   (let ((title (tasklist-title tasklist))
 	(id (tasklist-id tasklist)))
-    (message "Pulling %s ..." (propertize title 'face 'success))
+    (message "Fetching %s ..." (propertize title 'face 'success))
     (org-gtasks-request-fetch account
 			      (format "%s/lists/%s/tasks" org-gtasks-default-url id)
-			      (apply-partially #'org-gtasks-tasks-cb account tasklist))))
+			      (apply-partially #'org-gtasks-tasks-cb account tasklist write-p))))
 
-(defun org-gtasks-tasklists-cb (account data)
+(defun org-gtasks-tasklists-cb (account write-p data)
   (when (plist-member data :items)
     (dolist (item (array-to-list (plist-get data :items)))
       (let* ((title (plist-get item :title))
@@ -301,15 +304,27 @@
 	     (id (plist-get item :id))
 	     (tasklist (make-tasklist :title title :file file :id id)))
 	(push tasklist (org-gtasks-tasklists account))
-	(org-gtasks-fetch-tasks account tasklist)))))
+	(org-gtasks-fetch-tasks account write-p tasklist)))))
 
-(defun org-gtasks-fetch-tasklists (account)
+(defun org-gtasks-fetch-tasklists (account &optional write-p)
   (setf (org-gtasks-tasklists account) nil)
   (org-gtasks-request-fetch account
 			    (concat org-gtasks-default-url "/users/@me/lists")
-			    (apply-partially #'org-gtasks-tasklists-cb account)))
+			    (apply-partially #'org-gtasks-tasklists-cb account write-p)))
 
-(defun org-gtasks-pull-current ()
+(defun org-gtasks-fetch (account &optional listname)
+  (let* ((tasklists (org-gtasks-tasklists account))
+	 (titles (mapcar 'tasklist-title tasklists))
+	 (collection (append (list "ALL") titles))
+	 (target (if (null listname)
+		     (completing-read "Fetch: " collection)
+		   listname)))
+    (if (string= target "ALL")
+	(org-gtasks-fetch-tasklists account)
+      (when-let ((tasklist (org-gtasks-find-tasklist tasklists target)))
+	(org-gtasks-fetch-tasks account nil tasklist)))))
+
+(defun org-gtasks-fetch-current ()
   (interactive)
   (when-let* ((file (buffer-file-name))
               (title (file-name-base file))
@@ -317,11 +332,12 @@
               (account (org-gtasks-find-account-by-dir dir)))
     (if-let* ((tasklists (org-gtasks-tasklists account))
               (tasklist (org-gtasks-find-tasklist tasklists title)))
-        (org-gtasks-fetch-tasks account tasklist)
-      (when (yes-or-no-p "No tasklist found, do you want pull this account ?")
+	(org-gtasks-fetch-tasks account nil tasklist)
+      (when (yes-or-no-p "No tasklist found, do you want fetch this account ?")
         (org-gtasks-check-token account)
-        (org-gtasks-pull account "ALL")))))
+        (org-gtasks-fetch account "ALL")))))
 
+;; pull
 (defun org-gtasks-pull (account &optional listname)
   (let* ((tasklists (org-gtasks-tasklists account))
 	 (titles (mapcar 'tasklist-title tasklists))
@@ -330,9 +346,22 @@
                      (completing-read "Pull: " collection)
                    listname)))
     (if (string= target "ALL")
-	(org-gtasks-fetch-tasklists account)
+	(org-gtasks-fetch-tasklists account t)
       (when-let ((tasklist (org-gtasks-find-tasklist tasklists target)))
-	(org-gtasks-fetch-tasks account tasklist)))))
+	(org-gtasks-fetch-tasks account t tasklist)))))
+
+(defun org-gtasks-pull-current ()
+  (interactive)
+  (when-let* ((file (buffer-file-name))
+	      (title (file-name-base file))
+	      (dir (file-name-directory file))
+	      (account (org-gtasks-find-account-by-dir dir)))
+    (if-let* ((tasklists (org-gtasks-tasklists account))
+	      (tasklist (org-gtasks-find-tasklist tasklists title)))
+	(org-gtasks-fetch-tasks account t tasklist)
+      (when (yes-or-no-p "No tasklist found, do you want pull this account ?")
+	(org-gtasks-check-token account)
+	(org-gtasks-pull account "ALL")))))
 
 ;; push
 (defun org-gtasks-format-iso2org (str)
@@ -463,10 +492,10 @@
               (tasklist (org-gtasks-find-tasklist tasklists title)))
         (org-gtasks-push-tasklists account (list tasklist)
 				   (apply-partially #'org-gtasks-fetch-tasks
-						    account tasklist))
-      (when (yes-or-no-p "No tasklist found, do you want pull this account ?")
+						    account t tasklist))
+      (when (yes-or-no-p "No tasklist found, do you want fetch this account ?")
         (org-gtasks-check-token account)
-        (org-gtasks-pull account "ALL")))))
+	(org-gtasks-fetch account "ALL")))))
 
 (defun org-gtasks-push (account &optional listname)
   (let* ((tasklists (org-gtasks-tasklists account))
@@ -480,11 +509,11 @@
     (if (string= target "ALL")
 	(org-gtasks-push-tasklists account tasklists
 				   (apply-partially #'org-gtasks-fetch-tasklists
-						    account))
+						    account t))
       (when-let ((tasklist (org-gtasks-find-tasklist tasklists target)))
 	(org-gtasks-push-tasklists account (list tasklist)
 				   (apply-partially #'org-gtasks-fetch-tasks
-						    account tasklist))))))
+						    account t tasklist))))))
 
 ;; add
 (defun org-gtasks-build-add-data (added)
