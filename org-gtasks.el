@@ -1,4 +1,4 @@
-;;; org-gtasks.el --- Export/import all Google Tasks to org files.
+;;; org-gtasks.el --- Export/import all Google Tasks to org files
 
 ;; Author: Julien Masson <massonju.eseo@gmail.com>
 ;; URL: https://github.com/JulienMasson/org-gtasks
@@ -6,7 +6,7 @@
 ;; Maintainer: massonju.eseo
 ;; Copyright (C) :2018-2019 Julien Masson all rights reserved.
 ;; Created: :30-08-18
-;; Package-Requires: ((emacs "24") (cl-lib "0.5") (org "8.2.4"))
+;; Package-Requires: ((emacs "26.1"))
 ;; Keywords: convenience,
 
 ;; This program is free software; you can redistribute it and/or modify
@@ -21,6 +21,10 @@
 
 ;; You should have received a copy of the GNU General Public License
 ;; along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+;;; Commentary:
+
+;; Export/import all Google Tasks to org files
 
 (require 'cl-lib)
 (require 'deferred)
@@ -629,6 +633,8 @@
     (add-to-list 'org-gtasks-accounts account t 'org-gtasks-account-eq)))
 
 (provide 'org-gtasks)
+
+;;; org-gtasks.el ends here
 
 ;; Local Variables:
 ;; indent-tabs-mode: nil
