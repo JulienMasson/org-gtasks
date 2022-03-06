@@ -40,7 +40,7 @@
   refresh-token
   tasklists)
 
-(cl-defstruct tasklist
+(cl-defstruct org-gtasks-tasklist
   title
   file
   id
@@ -100,7 +100,7 @@
 	      org-gtasks-accounts))
 
 (defun org-gtasks-find-tasklist (tasklists title)
-  (cl-find-if (lambda (tasklist) (string= (tasklist-title tasklist) title))
+  (cl-find-if (lambda (tasklist) (string= (org-gtasks-tasklist-title tasklist) title))
 	      tasklists))
 
 ;; request
@@ -270,10 +270,10 @@
 
 (defun org-gtasks-write-to-org (account tasklist)
   (let* ((default-directory (org-gtasks-directory account))
-	 (file (tasklist-file tasklist))
-	 (title (tasklist-title tasklist))
+	 (file (org-gtasks-tasklist-file tasklist))
+	 (title (org-gtasks-tasklist-title tasklist))
 	 (header (format "#+FILETAGS: :%s:\n" title))
-	 (tasks (tasklist-tasks tasklist))
+	 (tasks (org-gtasks-tasklist-tasks tasklist))
 	 (save-silently t))
     (with-current-buffer (find-file-noselect file)
       (erase-buffer)
@@ -287,14 +287,14 @@
       (save-buffer))))
 
 (defun org-gtasks-tasks-cb (account tasklist write-p data)
-  (setf (tasklist-tasks tasklist) (array-to-list (plist-get data :items)))
-  (message "Fetch %s done" (propertize (tasklist-title tasklist) 'face 'success))
+  (setf (org-gtasks-tasklist-tasks tasklist) (array-to-list (plist-get data :items)))
+  (message "Fetch %s done" (propertize (org-gtasks-tasklist-title tasklist) 'face 'success))
   (when write-p
     (org-gtasks-write-to-org account tasklist)))
 
 (defun org-gtasks-fetch-tasks (account write-p tasklist)
-  (let ((title (tasklist-title tasklist))
-	(id (tasklist-id tasklist)))
+  (let ((title (org-gtasks-tasklist-title tasklist))
+	(id (org-gtasks-tasklist-id tasklist)))
     (message "Fetching %s ..." (propertize title 'face 'success))
     (org-gtasks-request-fetch account
 			      (format "%s/lists/%s/tasks" org-gtasks-default-url id)
@@ -306,7 +306,7 @@
       (let* ((title (plist-get item :title))
 	     (file (format "%s.org" title))
 	     (id (plist-get item :id))
-	     (tasklist (make-tasklist :title title :file file :id id)))
+	     (tasklist (make-org-gtasks-tasklist :title title :file file :id id)))
 	(push tasklist (org-gtasks-tasklists account))
 	(org-gtasks-fetch-tasks account write-p tasklist)))))
 
@@ -318,7 +318,7 @@
 
 (defun org-gtasks-fetch (account &optional listname)
   (let* ((tasklists (org-gtasks-tasklists account))
-	 (titles (mapcar 'tasklist-title tasklists))
+	 (titles (mapcar 'org-gtasks-tasklist-title tasklists))
 	 (collection (append (list "ALL") titles))
 	 (target (if (null listname)
 		     (completing-read "Fetch: " collection)
@@ -344,7 +344,7 @@
 ;; pull
 (defun org-gtasks-pull (account &optional listname)
   (let* ((tasklists (org-gtasks-tasklists account))
-	 (titles (mapcar 'tasklist-title tasklists))
+	 (titles (mapcar 'org-gtasks-tasklist-title tasklists))
 	 (collection (append (list "ALL") titles))
 	 (target (if (null listname)
                      (completing-read "Pull: " collection)
@@ -407,16 +407,16 @@
   (replace-regexp-in-string org-gtasks-links-drawer-re "" notes))
 
 (defun org-gtasks-build-tasks-data (tasklist)
-  (let ((title (tasklist-title tasklist))
-	(file (tasklist-file tasklist))
-	(tasklist-id (tasklist-id tasklist))
-	(tasks (tasklist-tasks tasklist))
+  (let ((title (org-gtasks-tasklist-title tasklist))
+	(file (org-gtasks-tasklist-file tasklist))
+	(org-gtasks-tasklist-id (org-gtasks-tasklist-id tasklist))
+	(tasks (org-gtasks-tasklist-tasks tasklist))
 	initial-data tasklist-data)
     ;; init data with all tasks id with type DELETE
     (dolist (task tasks)
       (let* ((task-id (plist-get task :id))
 	     (url (format "%s/lists/%s/tasks/%s" org-gtasks-default-url
-			  tasklist-id task-id)))
+			  org-gtasks-tasklist-id task-id)))
 	(push (cons (plist-get task :id) (list url "DELETE" nil))
 	      initial-data)))
     ;; loop over org elements
@@ -427,7 +427,7 @@
 	    (let* ((id (org-element-property :ID hl))
 		   (type (org-gtasks-find-type tasks id))
 		   (url (concat (format "%s/lists/%s/tasks" org-gtasks-default-url
-					tasklist-id)
+					org-gtasks-tasklist-id)
 				(if (string= type "PATCH") (concat "/" id))))
 		   (title (substring-no-properties (org-element-interpret-data
 						    (org-element-property :title hl))))
@@ -503,7 +503,7 @@
 
 (defun org-gtasks-push (account &optional listname)
   (let* ((tasklists (org-gtasks-tasklists account))
-	 (collection (mapcar 'tasklist-title tasklists))
+	 (collection (mapcar 'org-gtasks-tasklist-title tasklists))
 	 (collection (if (> (length collection) 1)
                          (append (list "ALL") collection)
                        collection))
@@ -537,7 +537,7 @@
   (when-let* ((title (plist-get data :title))
 	      (file (format "%s.org" title))
 	      (id (plist-get data :id))
-	      (tasklist (make-tasklist :title title :file file :id id)))
+	      (tasklist (make-org-gtasks-tasklist :title title :file file :id id)))
     (setf (org-gtasks-tasklists account)
 	  (append (list tasklist) (org-gtasks-tasklists account)))
     (org-gtasks-push-tasklists account (list tasklist)
@@ -556,7 +556,7 @@
 (defun org-gtasks-add (account)
   (let* ((local-files (org-gtasks-local-files account))
 	 (tasklists (org-gtasks-tasklists account))
-	 (files (mapcar 'tasklist-file tasklists))
+	 (files (mapcar 'org-gtasks-tasklist-file tasklists))
 	 (added (cl-set-difference local-files files :test #'string=))
 	 (collection (if (> (length added) 1)
 			 (append (list "ALL") added)
@@ -570,9 +570,9 @@
 (defun org-gtasks-build-remove-data (tasklists removed)
   (let (data)
     (dolist (file removed)
-      (when-let* ((tasklist (cl-find-if (lambda (tl) (string= (tasklist-file tl) file))
+      (when-let* ((tasklist (cl-find-if (lambda (tl) (string= (org-gtasks-tasklist-file tl) file))
 					tasklists))
-		  (id (tasklist-id tasklist))
+		  (id (org-gtasks-tasklist-id tasklist))
 		  (url (format "%s/users/@me/lists/%s" org-gtasks-default-url id)))
 	(push (list tasklist url "DELETE") data)))
     data))
@@ -591,7 +591,7 @@
 (defun org-gtasks-remove (account)
   (let* ((local-files (org-gtasks-local-files account))
 	 (tasklists (org-gtasks-tasklists account))
-	 (files (mapcar 'tasklist-file tasklists))
+	 (files (mapcar 'org-gtasks-tasklist-file tasklists))
 	 (removed (cl-set-difference files local-files :test #'string=))
 	 (collection (if (> (length removed) 1)
 			 (append (list "ALL") removed)
