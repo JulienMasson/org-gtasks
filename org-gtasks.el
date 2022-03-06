@@ -74,7 +74,7 @@
 (defvar org-gtasks-accounts nil)
 
 ;; utils
-(defun array-to-list (array)
+(defun org-gtasks-array-to-list (array)
   (mapcar 'identity array))
 
 (defun org-gtasks-json-read ()
@@ -287,7 +287,7 @@
       (save-buffer))))
 
 (defun org-gtasks-tasks-cb (account tasklist write-p data)
-  (setf (org-gtasks-tasklist-tasks tasklist) (array-to-list (plist-get data :items)))
+  (setf (org-gtasks-tasklist-tasks tasklist) (org-gtasks-array-to-list (plist-get data :items)))
   (message "Fetch %s done" (propertize (org-gtasks-tasklist-title tasklist) 'face 'success))
   (when write-p
     (org-gtasks-write-to-org account tasklist)))
@@ -302,7 +302,7 @@
 
 (defun org-gtasks-tasklists-cb (account write-p data)
   (when (plist-member data :items)
-    (dolist (item (array-to-list (plist-get data :items)))
+    (dolist (item (org-gtasks-array-to-list (plist-get data :items)))
       (let* ((title (plist-get item :title))
 	     (file (format "%s.org" title))
 	     (id (plist-get item :id))
