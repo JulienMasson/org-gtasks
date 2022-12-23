@@ -66,10 +66,10 @@
   "Matches an entire org-gtasks links drawer.")
 
 (defvar org-gtasks-actions '(("Push"   . org-gtasks-push)
-			     ("Fetch"  . org-gtasks-fetch)
-			     ("Pull"   . org-gtasks-pull)
-			     ("Add"    . org-gtasks-add)
-			     ("Remove" . org-gtasks-remove)))
+                             ("Fetch"  . org-gtasks-fetch)
+                             ("Pull"   . org-gtasks-pull)
+                             ("Add"    . org-gtasks-add)
+                             ("Remove" . org-gtasks-remove)))
 
 (defvar org-gtasks-accounts nil)
 
@@ -104,36 +104,36 @@
 
 (defun org-gtasks-local-files (account)
   (cl-remove-if-not (lambda (file) (string-match "\\.org$" file))
-		    (directory-files (org-gtasks-directory account))))
+                    (directory-files (org-gtasks-directory account))))
 
 (defun org-gtasks-find-account-by-name (name)
   (cl-find-if (lambda (account) (string= (org-gtasks-name account) name))
-	      org-gtasks-accounts))
+              org-gtasks-accounts))
 
 (defun org-gtasks-find-account-by-dir (dir)
   (cl-find-if (lambda (account) (string= (org-gtasks-directory account) dir))
-	      org-gtasks-accounts))
+              org-gtasks-accounts))
 
 (defun org-gtasks-find-tasklist (tasklists title)
   (cl-find-if (lambda (tasklist) (string= (tasklist-title tasklist) title))
-	      tasklists))
+              tasklists))
 
 ;; request
 (defun org-gtasks-parse-errors (account response &optional on-token-refresh)
   (let ((data (request-response-data response))
-	(status (request-response-status-code response))
-	(error-msg (request-response-error-thrown response))
-	return-status)
+        (status (request-response-status-code response))
+        (error-msg (request-response-error-thrown response))
+        return-status)
     (cond
      ((null status)
       (error "Please check your network connectivity"))
      ((eq 401 (or status (plist-get (plist-get data :error) :code)))
       (message "OAuth token expired. refresh access token")
       (if-let ((access-token (org-gtasks-get-access-token account)))
-	  (progn
-	    (setf (org-gtasks-access-token account) access-token)
-	    (if on-token-refresh (funcall on-token-refresh account)))
-	(error "Cannot get access token")))
+          (progn
+            (setf (org-gtasks-access-token account) access-token)
+            (if on-token-refresh (funcall on-token-refresh account)))
+        (error "Cannot get access token")))
      ((eq 403 status)
       (error "Ensure you enabled the Tasks API through the Developers Console"))
      ((and (> status 299) (null data))
@@ -145,41 +145,41 @@
 
 (cl-defun org-gtasks-request (account url &key type (headers nil) (data nil) (params nil))
   (let (org-gtasks-request-data
-	(d (deferred:$ (request-deferred url
-					 :type type
-					 :headers headers
-					 :data data
-					 :params params
-					 :parser 'org-gtasks-json-read)
-	     (deferred:nextc it
-	       `(lambda (response)
-		  (when (org-gtasks-parse-errors ,account response)
-		    (setq org-gtasks-request-data (request-response-data response))))))))
+        (d (deferred:$ (request-deferred url
+                                         :type type
+                                         :headers headers
+                                         :data data
+                                         :params params
+                                         :parser 'org-gtasks-json-read)
+             (deferred:nextc it
+               `(lambda (response)
+                  (when (org-gtasks-parse-errors ,account response)
+                    (setq org-gtasks-request-data (request-response-data response))))))))
     (deferred:sync! d)
     org-gtasks-request-data))
 
 (cl-defun org-gtasks-request-async (account url cb &key type (headers nil) (data nil)
-					    (params nil))
+                                            (params nil))
   (let ((on-token-refresh `(lambda (account)
-			     (when-let ((access-token (org-gtasks-access-token account))
-					(params ',params))
-			       (when (assoc "access_token" params)
-				 (setcdr (assoc "access_token" params) access-token)
-				 (org-gtasks-request-async account ,url ,cb
-							   :type ,type
-							   :headers ',headers
-							   :data ',data
-							   :params params))))))
+                             (when-let ((access-token (org-gtasks-access-token account))
+                                        (params ',params))
+                               (when (assoc "access_token" params)
+                                 (setcdr (assoc "access_token" params) access-token)
+                                 (org-gtasks-request-async account ,url ,cb
+                                                           :type ,type
+                                                           :headers ',headers
+                                                           :data ',data
+                                                           :params params))))))
     (deferred:$ (request-deferred url
-				  :type type
-				  :headers headers
-				  :data data
-				  :params params
-				  :parser 'org-gtasks-json-read)
+                                  :type type
+                                  :headers headers
+                                  :data data
+                                  :params params
+                                  :parser 'org-gtasks-json-read)
       (deferred:nextc it
-	`(lambda (response)
-	   (when (org-gtasks-parse-errors ,account response ,on-token-refresh)
-	     (funcall ,cb (request-response-data response))))))))
+        `(lambda (response)
+           (when (org-gtasks-parse-errors ,account response ,on-token-refresh)
+             (funcall ,cb (request-response-data response))))))))
 
 ;; token
 (defun org-gtasks-need-auth (account)
@@ -188,11 +188,11 @@
 
 (defun org-gtasks-read-local-refresh-token (account)
   (let* ((dir (org-gtasks-directory account))
-	 (file (concat dir ".refresh_token")))
+         (file (concat dir ".refresh_token")))
     (when (file-exists-p file)
       (with-temp-buffer
-	(insert-file-contents file)
-	(buffer-string)))))
+        (insert-file-contents file)
+        (buffer-string)))))
 
 (defun org-gtasks-save-local-refresh-token (account)
   (let* ((dir (org-gtasks-directory account))
@@ -272,13 +272,13 @@
 
 (defun org-gtasks-get-access-token (account)
   (let ((data (org-gtasks-request
-	       account
-	       org-gtasks-token-url
-	       :type "POST"
-	       :data `(("client_id" . ,(org-gtasks-client-id account))
-		       ("client_secret" . ,(org-gtasks-client-secret account))
-		       ("refresh_token" . ,(org-gtasks-refresh-token account))
-		       ("grant_type" . "refresh_token")))))
+               account
+               org-gtasks-token-url
+               :type "POST"
+               :data `(("client_id" . ,(org-gtasks-client-id account))
+                       ("client_secret" . ,(org-gtasks-client-secret account))
+                       ("refresh_token" . ,(org-gtasks-refresh-token account))
+                       ("grant_type" . "refresh_token")))))
     (when (plist-member data :access_token)
       (plist-get data :access_token))))
 
@@ -293,54 +293,54 @@
 ;; fetch
 (defun org-gtasks-request-fetch (account url cb)
   (org-gtasks-request-async account url cb
-			    :type "GET"
-			    :params `(("access_token" . ,(org-gtasks-access-token account))
-				      ("singleEvents" . "True")
-				      ("orderBy"      . "startTime")
-				      ("grant_type"   . "authorization_code"))))
+                            :type "GET"
+                            :params `(("access_token" . ,(org-gtasks-access-token account))
+                                      ("singleEvents" . "True")
+                                      ("orderBy"      . "startTime")
+                                      ("grant_type"   . "authorization_code"))))
 
 (defun org-gtasks-task (plst)
   (let* ((id  (plist-get plst :id))
-	 (title  (plist-get plst :title))
-	 (due (plist-get plst :due))
-	 (notes  (plist-get plst :notes))
-	 (links  (plist-get plst :links))
-	 (status (if (string= "completed" (plist-get plst :status))
-		     "DONE"
-		   "TODO"))
-	 (completed (plist-get plst :completed)))
+         (title  (plist-get plst :title))
+         (due (plist-get plst :due))
+         (notes  (plist-get plst :notes))
+         (links  (plist-get plst :links))
+         (status (if (string= "completed" (plist-get plst :status))
+                     "DONE"
+                   "TODO"))
+         (completed (plist-get plst :completed)))
     (concat (format "* %s %s\n" status title)
-	    (when due
-	      (format "  DEADLINE: <%s>\n" (org-gtasks-format-iso2org due)))
-	    (when completed
-	      (format "  CLOSED: [%s]\n" (org-gtasks-format-iso2org completed)))
-	    "  :PROPERTIES:\n"
-	    "  :ID: " id "\n"
-	    "  :END:\n"
-	    (when notes (concat notes "\n"))
+            (when due
+              (format "  DEADLINE: <%s>\n" (org-gtasks-format-iso2org due)))
+            (when completed
+              (format "  CLOSED: [%s]\n" (org-gtasks-format-iso2org completed)))
+            "  :PROPERTIES:\n"
+            "  :ID: " id "\n"
+            "  :END:\n"
+            (when notes (concat notes "\n"))
             (when links
               (concat "\n  :links:\n"
                       (mapconcat (lambda (link)
-				   (let* ((type (plist-get link :type))
-					  (org-link (plist-get link :link))
-					  (desc (plist-get link :description))
-					  (str (org-make-link-string org-link desc)))
-				     (format "  - %s: %s\n" type str)))
-				 links "")
+                                   (let* ((type (plist-get link :type))
+                                          (org-link (plist-get link :link))
+                                          (desc (plist-get link :description))
+                                          (str (org-make-link-string org-link desc)))
+                                     (format "  - %s: %s\n" type str)))
+                                 links "")
                       "  :end:\n")))))
 
 (defun org-gtasks-write-to-org (account tasklist)
   (let* ((default-directory (org-gtasks-directory account))
-	 (file (tasklist-file tasklist))
-	 (title (tasklist-title tasklist))
-	 (header (format "#+FILETAGS: :%s:\n" title))
-	 (tasks (tasklist-tasks tasklist))
-	 (save-silently t))
+         (file (tasklist-file tasklist))
+         (title (tasklist-title tasklist))
+         (header (format "#+FILETAGS: :%s:\n" title))
+         (tasks (tasklist-tasks tasklist))
+         (save-silently t))
     (with-current-buffer (find-file-noselect file)
       (erase-buffer)
       (insert header)
       (dolist (task tasks)
-	(insert (org-gtasks-task task)))
+        (insert (org-gtasks-task task)))
       (goto-char (point-min))
       (when tasks
         (org-sort-entries nil ?o)
@@ -355,39 +355,39 @@
 
 (defun org-gtasks-fetch-tasks (account write-p tasklist)
   (let ((title (tasklist-title tasklist))
-	(id (tasklist-id tasklist)))
+        (id (tasklist-id tasklist)))
     (message "Fetching %s ..." (propertize title 'face 'success))
     (org-gtasks-request-fetch account
-			      (format "%s/lists/%s/tasks" org-gtasks-default-url id)
-			      (apply-partially #'org-gtasks-tasks-cb account tasklist write-p))))
+                              (format "%s/lists/%s/tasks" org-gtasks-default-url id)
+                              (apply-partially #'org-gtasks-tasks-cb account tasklist write-p))))
 
 (defun org-gtasks-tasklists-cb (account write-p data)
   (when (plist-member data :items)
     (dolist (item (array-to-list (plist-get data :items)))
       (let* ((title (plist-get item :title))
-	     (file (format "%s.org" title))
-	     (id (plist-get item :id))
-	     (tasklist (make-tasklist :title title :file file :id id)))
-	(push tasklist (org-gtasks-tasklists account))
-	(org-gtasks-fetch-tasks account write-p tasklist)))))
+             (file (format "%s.org" title))
+             (id (plist-get item :id))
+             (tasklist (make-tasklist :title title :file file :id id)))
+        (push tasklist (org-gtasks-tasklists account))
+        (org-gtasks-fetch-tasks account write-p tasklist)))))
 
 (defun org-gtasks-fetch-tasklists (account &optional write-p)
   (setf (org-gtasks-tasklists account) nil)
   (org-gtasks-request-fetch account
-			    (concat org-gtasks-default-url "/users/@me/lists")
-			    (apply-partially #'org-gtasks-tasklists-cb account write-p)))
+                            (concat org-gtasks-default-url "/users/@me/lists")
+                            (apply-partially #'org-gtasks-tasklists-cb account write-p)))
 
 (defun org-gtasks-fetch (account &optional listname)
   (let* ((tasklists (org-gtasks-tasklists account))
-	 (titles (mapcar 'tasklist-title tasklists))
-	 (collection (append (list "ALL") titles))
-	 (target (if (null listname)
-		     (completing-read "Fetch: " collection)
-		   listname)))
+         (titles (mapcar 'tasklist-title tasklists))
+         (collection (append (list "ALL") titles))
+         (target (if (null listname)
+                     (completing-read "Fetch: " collection)
+                   listname)))
     (if (string= target "ALL")
-	(org-gtasks-fetch-tasklists account)
+        (org-gtasks-fetch-tasklists account)
       (when-let ((tasklist (org-gtasks-find-tasklist tasklists target)))
-	(org-gtasks-fetch-tasks account nil tasklist)))))
+        (org-gtasks-fetch-tasks account nil tasklist)))))
 
 (defun org-gtasks-fetch-current ()
   (interactive)
@@ -397,7 +397,7 @@
               (account (org-gtasks-find-account-by-dir dir)))
     (if-let* ((tasklists (org-gtasks-tasklists account))
               (tasklist (org-gtasks-find-tasklist tasklists title)))
-	(org-gtasks-fetch-tasks account nil tasklist)
+        (org-gtasks-fetch-tasks account nil tasklist)
       (when (yes-or-no-p "No tasklist found, do you want fetch this account ?")
         (org-gtasks-check-token account)
         (org-gtasks-fetch account "ALL")))))
@@ -405,28 +405,28 @@
 ;; pull
 (defun org-gtasks-pull (account &optional listname)
   (let* ((tasklists (org-gtasks-tasklists account))
-	 (titles (mapcar 'tasklist-title tasklists))
-	 (collection (append (list "ALL") titles))
-	 (target (if (null listname)
+         (titles (mapcar 'tasklist-title tasklists))
+         (collection (append (list "ALL") titles))
+         (target (if (null listname)
                      (completing-read "Pull: " collection)
                    listname)))
     (if (string= target "ALL")
-	(org-gtasks-fetch-tasklists account t)
+        (org-gtasks-fetch-tasklists account t)
       (when-let ((tasklist (org-gtasks-find-tasklist tasklists target)))
-	(org-gtasks-fetch-tasks account t tasklist)))))
+        (org-gtasks-fetch-tasks account t tasklist)))))
 
 (defun org-gtasks-pull-current ()
   (interactive)
   (when-let* ((file (buffer-file-name))
-	      (title (file-name-base file))
-	      (dir (file-name-directory file))
-	      (account (org-gtasks-find-account-by-dir dir)))
+              (title (file-name-base file))
+              (dir (file-name-directory file))
+              (account (org-gtasks-find-account-by-dir dir)))
     (if-let* ((tasklists (org-gtasks-tasklists account))
-	      (tasklist (org-gtasks-find-tasklist tasklists title)))
-	(org-gtasks-fetch-tasks account t tasklist)
+              (tasklist (org-gtasks-find-tasklist tasklists title)))
+        (org-gtasks-fetch-tasks account t tasklist)
       (when (yes-or-no-p "No tasklist found, do you want pull this account ?")
-	(org-gtasks-check-token account)
-	(org-gtasks-pull account "ALL")))))
+        (org-gtasks-check-token account)
+        (org-gtasks-pull account "ALL")))))
 
 ;; push
 (defun org-gtasks-format-iso2org (str)
@@ -434,9 +434,9 @@
 
 (defun org-gtasks-format-org2iso (year mon day hour min)
   (let ((seconds (time-to-seconds (encode-time 0 (if min min 0) (if hour hour 0)
-					       day mon year))))
+                                               day mon year))))
     (concat (format-time-string "%Y-%m-%dT%H:%M" (seconds-to-time seconds))
-	    ":00Z")))
+            ":00Z")))
 
 (defun org-gtasks-find-type (tasks id)
   (if (cl-find-if (lambda (task) (string= (plist-get task :id) id)) tasks)
@@ -445,19 +445,19 @@
 
 (defun org-gtasks-task-completed (tasks id)
   (cl-find-if (lambda (task)
-		(when (string= (plist-get task :id) id)
-		  (plist-member task :completed)))
-	      tasks))
+                (when (string= (plist-get task :id) id)
+                  (plist-member task :completed)))
+              tasks))
 
 (defun org-gtasks-extract-notes (begin end)
   (if (and begin end)
       (save-excursion
-	(goto-char begin)
-	(when (re-search-forward org-property-drawer-re end t)
-	  (forward-char))
-	(if (= (point) end)
-	    ""
-	  (buffer-substring-no-properties (point) (- end 1))))
+        (goto-char begin)
+        (when (re-search-forward org-property-drawer-re end t)
+          (forward-char))
+        (if (= (point) end)
+            ""
+          (buffer-substring-no-properties (point) (- end 1))))
     ""))
 
 (defun org-gtasks-clean-notes (notes)
@@ -469,81 +469,81 @@
 
 (defun org-gtasks-build-tasks-data (tasklist)
   (let ((title (tasklist-title tasklist))
-	(file (tasklist-file tasklist))
-	(tasklist-id (tasklist-id tasklist))
-	(tasks (tasklist-tasks tasklist))
-	initial-data tasklist-data)
+        (file (tasklist-file tasklist))
+        (tasklist-id (tasklist-id tasklist))
+        (tasks (tasklist-tasks tasklist))
+        initial-data tasklist-data)
     ;; init data with all tasks id with type DELETE
     (dolist (task tasks)
       (let* ((task-id (plist-get task :id))
-	     (url (format "%s/lists/%s/tasks/%s" org-gtasks-default-url
-			  tasklist-id task-id)))
-	(push (cons (plist-get task :id) (list url "DELETE" nil))
-	      initial-data)))
+             (url (format "%s/lists/%s/tasks/%s" org-gtasks-default-url
+                          tasklist-id task-id)))
+        (push (cons (plist-get task :id) (list url "DELETE" nil))
+              initial-data)))
     ;; loop over org elements
     (with-current-buffer (find-file-noselect file)
       (org-element-map (org-element-parse-buffer) 'headline
-	(lambda (hl)
-	  (when (= (org-element-property :level hl) 1)
-	    (let* ((id (org-element-property :ID hl))
-		   (type (org-gtasks-find-type tasks id))
-		   (url (concat (format "%s/lists/%s/tasks" org-gtasks-default-url
-					tasklist-id)
-				(if (string= type "PATCH") (concat "/" id))))
-		   (title (substring-no-properties (org-element-interpret-data
-						    (org-element-property :title hl))))
-		   (org2iso (lambda (e)
-			      (org-gtasks-format-org2iso
-			       (plist-get e :year-start)
-			       (plist-get e :month-start)
-			       (plist-get e :day-start)
-			       (plist-get e :hour-start)
-			       (plist-get e :minute-start))))
-		   (deadline (org-element-property :deadline hl))
-		   (due (when deadline (funcall org2iso (cadr deadline))))
-		   (closed (org-element-property :closed hl))
-		   (completed (when closed (funcall org2iso (cadr closed))))
-		   (status (if (string= (org-element-property :todo-type hl) "done")
-			       "completed"
-			     "needsAction"))
-		   (notes (org-gtasks-extract-notes (plist-get (cadr hl) :contents-begin)
-						    (plist-get (cadr hl) :contents-end)))
+        (lambda (hl)
+          (when (= (org-element-property :level hl) 1)
+            (let* ((id (org-element-property :ID hl))
+                   (type (org-gtasks-find-type tasks id))
+                   (url (concat (format "%s/lists/%s/tasks" org-gtasks-default-url
+                                        tasklist-id)
+                                (if (string= type "PATCH") (concat "/" id))))
+                   (title (substring-no-properties (org-element-interpret-data
+                                                    (org-element-property :title hl))))
+                   (org2iso (lambda (e)
+                              (org-gtasks-format-org2iso
+                               (plist-get e :year-start)
+                               (plist-get e :month-start)
+                               (plist-get e :day-start)
+                               (plist-get e :hour-start)
+                               (plist-get e :minute-start))))
+                   (deadline (org-element-property :deadline hl))
+                   (due (when deadline (funcall org2iso (cadr deadline))))
+                   (closed (org-element-property :closed hl))
+                   (completed (when closed (funcall org2iso (cadr closed))))
+                   (status (if (string= (org-element-property :todo-type hl) "done")
+                               "completed"
+                             "needsAction"))
+                   (notes (org-gtasks-extract-notes (plist-get (cadr hl) :contents-begin)
+                                                    (plist-get (cadr hl) :contents-end)))
                    (notes (org-gtasks-clean-notes notes))
-		   (data-list `(("title" . ,title)
-				("notes" . ,notes)
-				("status" . ,status))))
-	      (when (and completed (not (org-gtasks-task-completed tasks id)))
-		(add-to-list 'data-list `("completed" . ,completed)))
-	      (add-to-list 'data-list `("due" . ,due))
-	      (if (assoc id initial-data)
-		  (setcdr (assoc id initial-data) (list url type data-list))
-		(push (list url type data-list) tasklist-data)))))))
+                   (data-list `(("title" . ,title)
+                                ("notes" . ,notes)
+                                ("status" . ,status))))
+              (when (and completed (not (org-gtasks-task-completed tasks id)))
+                (add-to-list 'data-list `("completed" . ,completed)))
+              (add-to-list 'data-list `("due" . ,due))
+              (if (assoc id initial-data)
+                  (setcdr (assoc id initial-data) (list url type data-list))
+                (push (list url type data-list) tasklist-data)))))))
     (cons title (append tasklist-data (mapcar #'cdr initial-data)))))
 
 (defun org-gtasks-request-push (account url cb type data)
   (org-gtasks-request-async account url cb
-			    :type    type
-			    :headers '(("Content-Type" . "application/json"))
-			    :data    (if data (json-encode data))
-			    :params  `(("access_token" . ,(org-gtasks-access-token account))
-				       ("grant_type"   . "authorization_code"))))
+                            :type    type
+                            :headers '(("Content-Type" . "application/json"))
+                            :data    (if data (json-encode data))
+                            :params  `(("access_token" . ,(org-gtasks-access-token account))
+                                       ("grant_type"   . "authorization_code"))))
 
 (defun org-gtasks-push-tasks (account tasks tasklists done &optional data)
   (if tasks
       (pcase-let ((`(,url ,type ,data) (pop tasks)))
-	(org-gtasks-request-push account url
-				 (apply-partially #'org-gtasks-push-tasks
-						  account tasks tasklists done)
-				 type data))
+        (org-gtasks-request-push account url
+                                 (apply-partially #'org-gtasks-push-tasks
+                                                  account tasks tasklists done)
+                                 type data))
     (org-gtasks-push-tasklists account tasklists done)))
 
 (defun org-gtasks-push-tasklists (account tasklists done)
   (if tasklists
       (let* ((default-directory (org-gtasks-directory account))
-	     (tasklist (pop tasklists))
-	     (data (org-gtasks-build-tasks-data tasklist)))
-	(message "Pushing %s ..." (propertize (car data) 'face 'success))
-	(org-gtasks-push-tasks account (cdr data) tasklists done))
+             (tasklist (pop tasklists))
+             (data (org-gtasks-build-tasks-data tasklist)))
+        (message "Pushing %s ..." (propertize (car data) 'face 'success))
+        (org-gtasks-push-tasks account (cdr data) tasklists done))
     (message "Push done")
     (funcall done)))
 
@@ -556,38 +556,38 @@
     (if-let* ((tasklists (org-gtasks-tasklists account))
               (tasklist (org-gtasks-find-tasklist tasklists title)))
         (org-gtasks-push-tasklists account (list tasklist)
-				   (apply-partially #'org-gtasks-fetch-tasks
-						    account t tasklist))
+                                   (apply-partially #'org-gtasks-fetch-tasks
+                                                    account t tasklist))
       (when (yes-or-no-p "No tasklist found, do you want fetch this account ?")
         (org-gtasks-check-token account)
-	(org-gtasks-fetch account "ALL")))))
+        (org-gtasks-fetch account "ALL")))))
 
 (defun org-gtasks-push (account &optional listname)
   (let* ((tasklists (org-gtasks-tasklists account))
-	 (collection (mapcar 'tasklist-title tasklists))
-	 (collection (if (> (length collection) 1)
+         (collection (mapcar 'tasklist-title tasklists))
+         (collection (if (> (length collection) 1)
                          (append (list "ALL") collection)
                        collection))
-	 (target (if (null listname)
+         (target (if (null listname)
                      (completing-read "Push: " collection)
                    listname)))
     (if (string= target "ALL")
-	(org-gtasks-push-tasklists account tasklists
-				   (apply-partially #'org-gtasks-fetch-tasklists
-						    account t))
+        (org-gtasks-push-tasklists account tasklists
+                                   (apply-partially #'org-gtasks-fetch-tasklists
+                                                    account t))
       (when-let ((tasklist (org-gtasks-find-tasklist tasklists target)))
-	(org-gtasks-push-tasklists account (list tasklist)
-				   (apply-partially #'org-gtasks-fetch-tasks
-						    account t tasklist))))))
+        (org-gtasks-push-tasklists account (list tasklist)
+                                   (apply-partially #'org-gtasks-fetch-tasks
+                                                    account t tasklist))))))
 
 ;; add
 (defun org-gtasks-build-add-data (added)
   (let (data)
     (dolist (file added)
       (push (list (concat org-gtasks-default-url "/users/@me/lists")
-		  "POST"
-		  `(("title" . ,(file-name-base file))))
-	    data))
+                  "POST"
+                  `(("title" . ,(file-name-base file))))
+            data))
     data))
 
 (defun org-gtasks-push-tasklists-cb (account add-data tasklist &optional data)
@@ -596,35 +596,35 @@
 
 (defun org-gtasks-add-tasklists-cb (account add-data &optional data)
   (when-let* ((title (plist-get data :title))
-	      (file (format "%s.org" title))
-	      (id (plist-get data :id))
-	      (tasklist (make-tasklist :title title :file file :id id)))
+              (file (format "%s.org" title))
+              (id (plist-get data :id))
+              (tasklist (make-tasklist :title title :file file :id id)))
     (setf (org-gtasks-tasklists account)
-	  (append (list tasklist) (org-gtasks-tasklists account)))
+          (append (list tasklist) (org-gtasks-tasklists account)))
     (org-gtasks-push-tasklists account (list tasklist)
-			       (apply-partially #'org-gtasks-push-tasklists-cb
-						account add-data tasklist))))
+                               (apply-partially #'org-gtasks-push-tasklists-cb
+                                                account add-data tasklist))))
 
 (defun org-gtasks-add-tasklists (account add-data &optional data)
   (if add-data
       (pcase-let ((`(,url ,type ,data) (pop add-data)))
-	(org-gtasks-request-push account url
-				 (apply-partially #'org-gtasks-add-tasklists-cb
-						  account add-data)
-				 type data))
+        (org-gtasks-request-push account url
+                                 (apply-partially #'org-gtasks-add-tasklists-cb
+                                                  account add-data)
+                                 type data))
     (message "Add done")))
 
 (defun org-gtasks-add (account)
   (let* ((local-files (org-gtasks-local-files account))
-	 (tasklists (org-gtasks-tasklists account))
-	 (files (mapcar 'tasklist-file tasklists))
-	 (added (cl-set-difference local-files files :test #'string=))
-	 (collection (if (> (length added) 1)
-			 (append (list "ALL") added)
-		       added))
-	 (target (completing-read "Add: " collection))
-	 (added (if (string= target "ALL") added (list target)))
-	 (add-data (org-gtasks-build-add-data added)))
+         (tasklists (org-gtasks-tasklists account))
+         (files (mapcar 'tasklist-file tasklists))
+         (added (cl-set-difference local-files files :test #'string=))
+         (collection (if (> (length added) 1)
+                         (append (list "ALL") added)
+                       added))
+         (target (completing-read "Add: " collection))
+         (added (if (string= target "ALL") added (list target)))
+         (add-data (org-gtasks-build-add-data added)))
     (org-gtasks-add-tasklists account add-data)))
 
 ;; remove
@@ -632,45 +632,45 @@
   (let (data)
     (dolist (file removed)
       (when-let* ((tasklist (cl-find-if (lambda (tl) (string= (tasklist-file tl) file))
-					tasklists))
-		  (id (tasklist-id tasklist))
-		  (url (format "%s/users/@me/lists/%s" org-gtasks-default-url id)))
-	(push (list tasklist url "DELETE") data)))
+                                        tasklists))
+                  (id (tasklist-id tasklist))
+                  (url (format "%s/users/@me/lists/%s" org-gtasks-default-url id)))
+        (push (list tasklist url "DELETE") data)))
     data))
 
 (defun org-gtasks-remove-tasklists (account remove-data &optional data)
   (if remove-data
       (pcase-let ((`(,tasklist ,url ,type) (pop remove-data)))
-	(setf (org-gtasks-tasklists account)
-	      (remove tasklist (org-gtasks-tasklists account)))
-	(org-gtasks-request-push account url
-				 (apply-partially #'org-gtasks-remove-tasklists
-						  account remove-data)
-				 type nil))
+        (setf (org-gtasks-tasklists account)
+              (remove tasklist (org-gtasks-tasklists account)))
+        (org-gtasks-request-push account url
+                                 (apply-partially #'org-gtasks-remove-tasklists
+                                                  account remove-data)
+                                 type nil))
     (message "Remove done")))
 
 (defun org-gtasks-remove (account)
   (let* ((local-files (org-gtasks-local-files account))
-	 (tasklists (org-gtasks-tasklists account))
-	 (files (mapcar 'tasklist-file tasklists))
-	 (removed (cl-set-difference files local-files :test #'string=))
-	 (collection (if (> (length removed) 1)
-			 (append (list "ALL") removed)
-		       removed))
-	 (target (completing-read "Remove: " collection))
-	 (removed (if (string= target "ALL") removed (list target)))
-	 (remove-data (org-gtasks-build-remove-data tasklists removed)))
+         (tasklists (org-gtasks-tasklists account))
+         (files (mapcar 'tasklist-file tasklists))
+         (removed (cl-set-difference files local-files :test #'string=))
+         (collection (if (> (length removed) 1)
+                         (append (list "ALL") removed)
+                       removed))
+         (target (completing-read "Remove: " collection))
+         (removed (if (string= target "ALL") removed (list target)))
+         (remove-data (org-gtasks-build-remove-data tasklists removed)))
     (org-gtasks-remove-tasklists account remove-data)))
 
 ;;;###autoload
 (defun org-gtasks ()
   (interactive)
   (when-let* ((collection (mapcar 'org-gtasks-name org-gtasks-accounts))
-	      (name (completing-read "Select Account: " collection))
-	      (account (org-gtasks-find-account-by-name name))
-	      (action (completing-read (format "Action (%s): " name)
-				       (mapcar 'car org-gtasks-actions)))
-	      (func (assoc-default action org-gtasks-actions)))
+              (name (completing-read "Select Account: " collection))
+              (account (org-gtasks-find-account-by-name name))
+              (action (completing-read (format "Action (%s): " name)
+                                       (mapcar 'car org-gtasks-actions)))
+              (func (assoc-default action org-gtasks-actions)))
     (if (org-gtasks-need-auth account)
         (org-gtasks-request-auth account)
       (org-gtasks-check-token account)
@@ -679,20 +679,20 @@
 (defun org-gtasks-account-eq (a1 a2)
   (when (and (org-gtasks-p a1) (org-gtasks-p a2))
     (or (string= (org-gtasks-name a1) (org-gtasks-name a2))
-	(string= (org-gtasks-directory a1) (org-gtasks-directory a2)))))
+        (string= (org-gtasks-directory a1) (org-gtasks-directory a2)))))
 
 (defun org-gtasks-register-account (&rest plist)
   (let* ((name (plist-get plist :name))
-	 (directory (file-name-as-directory
-		     (expand-file-name (plist-get plist :directory))))
+         (directory (file-name-as-directory
+                     (expand-file-name (plist-get plist :directory))))
          (login (plist-get plist :login))
-	 (client-id (plist-get plist :client-id))
-	 (client-secret (plist-get plist :client-secret))
-	 (account (make-org-gtasks :name name
-				   :directory directory
+         (client-id (plist-get plist :client-id))
+         (client-secret (plist-get plist :client-secret))
+         (account (make-org-gtasks :name name
+                                   :directory directory
                                    :login login
-				   :client-id client-id
-				   :client-secret client-secret)))
+                                   :client-id client-id
+                                   :client-secret client-secret)))
     (unless (file-directory-p directory)
       (make-directory directory))
     (add-to-list 'org-gtasks-accounts account t 'org-gtasks-account-eq)))
