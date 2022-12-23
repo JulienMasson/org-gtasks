@@ -30,6 +30,7 @@
 (cl-defstruct org-gtasks
   (name nil :read-only t)
   directory
+  login
   client-id
   client-secret
   access-token
@@ -42,7 +43,7 @@
   id
   tasks)
 
-(defconst org-gtasks-token-url "https://www.googleapis.com/oauth2/v3/token"
+(defconst org-gtasks-token-url "https://oauth2.googleapis.com/token"
   "Google OAuth2 server URL.")
 
 (defconst org-gtasks-auth-url "https://accounts.google.com/o/oauth2/auth"
@@ -52,6 +53,9 @@
   "URL used to request access to tasks resources.")
 
 (defconst org-gtasks-default-url "https://www.googleapis.com/tasks/v1")
+
+(defconst org-gtasks-token-request-regexp
+  "^[[:space:]]*GET[[:space:]]+[/?]+\\([[:graph:]]*\\)[[:space:]]+HTTP/[0-9.]+[[:space:]]*$")
 
 (defconst org-gtasks-links-drawer-re
   (concat "\\("
@@ -69,9 +73,19 @@
 
 (defvar org-gtasks-accounts nil)
 
+(defvar org-gtasks-token-tmp-vars nil)
+
 ;; utils
 (defun array-to-list (array)
   (mapcar 'identity array))
+
+(defun org-gtasks-random-string (len)
+  (let* ((str "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXY0123456789-_")
+         (rand-len (length str)))
+    (with-temp-buffer
+      (dotimes (_l len)
+        (insert (elt str (random rand-len))))
+      (buffer-string))))
 
 (defun org-gtasks-json-read ()
   (let ((json-object-type 'plist))
@@ -82,6 +96,11 @@
     (json-read-from-string
      (decode-coding-string
       (buffer-substring-no-properties (point-min) (point-max)) 'utf-8))))
+
+(defun org-gtasks-urlify-request (alist)
+  (mapconcat (lambda (s) (concat (url-hexify-string (symbol-name (car s)))
+                                 "=" (url-hexify-string (cdr s))))
+             alist "&"))
 
 (defun org-gtasks-local-files (account)
   (cl-remove-if-not (lambda (file) (string-match "\\.org$" file))
@@ -163,26 +182,93 @@
 	     (funcall ,cb (request-response-data response))))))))
 
 ;; token
-(defun org-gtasks-request-authorization (account)
-  (browse-url (concat org-gtasks-auth-url
-                      "?client_id=" (url-hexify-string (org-gtasks-client-id account))
-                      "&response_type=code"
-                      "&redirect_uri=" (url-hexify-string "urn:ietf:wg:oauth:2.0:oob")
-                      "&scope=" (url-hexify-string org-gtasks-resource-url)))
-  (read-string "Enter the code your browser displayed: "))
+(defun org-gtasks-need-auth (account)
+  (and (not (org-gtasks-refresh-token account))
+       (not (org-gtasks-read-local-refresh-token account))))
 
-(defun org-gtasks-get-refresh-token (account)
-  (let ((data (org-gtasks-request
-	       account
-	       org-gtasks-token-url
-	       :type "POST"
-	       :data `(("client_id" . ,(org-gtasks-client-id account))
-		       ("client_secret" . ,(org-gtasks-client-secret account))
-		       ("code" . ,(org-gtasks-request-authorization account))
-		       ("redirect_uri" .  "urn:ietf:wg:oauth:2.0:oob")
-		       ("grant_type" . "authorization_code")))))
-    (when (plist-member data :refresh_token)
-      (plist-get data :refresh_token))))
+(defun org-gtasks-read-local-refresh-token (account)
+  (let* ((dir (org-gtasks-directory account))
+	 (file (concat dir ".refresh_token")))
+    (when (file-exists-p file)
+      (with-temp-buffer
+	(insert-file-contents file)
+	(buffer-string)))))
+
+(defun org-gtasks-save-local-refresh-token (account)
+  (let* ((dir (org-gtasks-directory account))
+         (file (concat dir ".refresh_token")))
+    (with-temp-file file
+      (insert (org-gtasks-refresh-token account)))))
+
+(defun org-gtasks-get-refresh-token (account code)
+  (pcase-let ((`(,redirect_uri ,code_verifier) org-gtasks-token-tmp-vars))
+    (let ((data (org-gtasks-request
+                 account
+                 org-gtasks-token-url
+                 :type "POST"
+                 :data `(("client_id"     . ,(org-gtasks-client-id account))
+                         ("client_secret" . ,(org-gtasks-client-secret account))
+                         ("code"          . ,code)
+                         ("redirect_uri"  . ,redirect_uri)
+                         ("code_verifier" . ,code_verifier)
+                         ("grant_type"    . "authorization_code"))))
+          (account-name (propertize (org-gtasks-name account) 'face 'success)))
+      (when (plist-member data :refresh_token)
+        (message "Got refresh token for %s account" account-name)
+        (setf (org-gtasks-refresh-token account) (plist-get data :refresh_token))
+        (org-gtasks-save-local-refresh-token account)
+        (setq org-gtasks-token-tmp-vars nil)))))
+
+(defun org-gtasks-send-response (process response)
+  (process-send-string
+   process (concat "HTTP/1.0 200 OK\n"
+                   "Content-Type: text/plain; charset=utf-8\n"
+                   (format "Content-Length: %i\n\n" (length response))
+                   response
+                   "\n\n"))
+  (process-send-eof process))
+
+(defun org-gtasks-filter (account process input)
+  (when-let* ((query-alist (with-temp-buffer
+                             (insert input)
+                             (goto-char (point-min))
+                             (re-search-forward org-gtasks-token-request-regexp)
+                             (mapcar (lambda (it) (cons (intern (car it)) (cadr it)))
+                                     (url-parse-query-string (match-string 1)))))
+              (code (assoc-default 'code query-alist)))
+    (org-gtasks-send-response process "Authentication token successfull")
+    (org-gtasks-get-refresh-token account code)))
+
+(defun org-gtasks-make-network-process (account)
+  (make-network-process :name    "org-gtasks-oauth2"
+                        :service t
+                        :server  t
+                        :host    'local
+                        :family  'ipv4
+                        :filter  (apply-partially #'org-gtasks-filter account)
+                        :coding  'binary))
+
+(defun org-gtasks-request-auth (account)
+  (setq org-gtasks-token-tmp-vars nil)
+  (let* ((server-proc (org-gtasks-make-network-process account))
+         (state (org-gtasks-random-string 8))
+         (code-verifier (org-gtasks-random-string 43))
+         (binary-code-challenge (secure-hash 'sha256 code-verifier nil nil t))
+         (code-challenge (base64url-encode-string binary-code-challenge t))
+         (local-url (format "http://localhost:%i/" (cadr (process-contact server-proc))))
+         (data-alist `((scope                 . ,org-gtasks-resource-url)
+                       (client_id             . ,(org-gtasks-client-id account))
+                       (redirect_uri          . ,local-url)
+                       (login_hint            . ,(org-gtasks-login account))
+                       (response_type         . "code")
+                       (response_mode         . "query")
+                       (access_type           . "offline")
+                       (state                 . ,state)
+                       (code_challenge        . ,code-challenge)
+                       (code_challenge_method . "S256")))
+         (data (org-gtasks-urlify-request data-alist)))
+    (setq org-gtasks-token-tmp-vars (list local-url code-verifier))
+    (browse-url (concat org-gtasks-auth-url "?" data))))
 
 (defun org-gtasks-get-access-token (account)
   (let ((data (org-gtasks-request
@@ -196,32 +282,11 @@
     (when (plist-member data :access_token)
       (plist-get data :access_token))))
 
-(defun org-gtasks-read-local-refresh-token (account)
-  (let* ((dir (org-gtasks-directory account))
-	 (file (concat dir ".refresh_token")))
-    (when (file-exists-p file)
-      (with-temp-buffer
-	(insert-file-contents file)
-	(buffer-string)))))
-
-(defun org-gtasks-get-local-refresh-token (account)
-  (let* ((dir (org-gtasks-directory account))
-	 (file (concat dir ".refresh_token"))
-	 (refresh-token (org-gtasks-get-refresh-token account)))
-    (unless (file-exists-p file)
-      (find-file-noselect file))
-    (with-temp-file file
-      (insert refresh-token))))
-
 (defun org-gtasks-check-token (account)
   (let ((refresh-token (org-gtasks-refresh-token account))
-	(local-refresh-token (org-gtasks-read-local-refresh-token account))
-	(access-token (org-gtasks-access-token account)))
+        (access-token (org-gtasks-access-token account)))
     (unless refresh-token
-      (if local-refresh-token
-	  (setf (org-gtasks-refresh-token account) local-refresh-token)
-	(org-gtasks-get-local-refresh-token account)
-	(setf (org-gtasks-refresh-token account) (org-gtasks-read-local-refresh-token account))))
+      (setf (org-gtasks-refresh-token account) (org-gtasks-read-local-refresh-token account)))
     (unless access-token
       (setf (org-gtasks-access-token account) (org-gtasks-get-access-token account)))))
 
@@ -606,8 +671,10 @@
 	      (action (completing-read (format "Action (%s): " name)
 				       (mapcar 'car org-gtasks-actions)))
 	      (func (assoc-default action org-gtasks-actions)))
-    (org-gtasks-check-token account)
-    (funcall func account)))
+    (if (org-gtasks-need-auth account)
+        (org-gtasks-request-auth account)
+      (org-gtasks-check-token account)
+      (funcall func account))))
 
 (defun org-gtasks-account-eq (a1 a2)
   (when (and (org-gtasks-p a1) (org-gtasks-p a2))
@@ -618,10 +685,12 @@
   (let* ((name (plist-get plist :name))
 	 (directory (file-name-as-directory
 		     (expand-file-name (plist-get plist :directory))))
+         (login (plist-get plist :login))
 	 (client-id (plist-get plist :client-id))
 	 (client-secret (plist-get plist :client-secret))
 	 (account (make-org-gtasks :name name
 				   :directory directory
+                                   :login login
 				   :client-id client-id
 				   :client-secret client-secret)))
     (unless (file-directory-p directory)

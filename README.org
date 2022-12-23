@@ -16,6 +16,7 @@ org files stored in a particular directory like so:
 (require 'org-gtasks)
 (org-gtasks-register-account :name "Perso"
                              :directory "~/.emacs.d/gtasks/"
+                             :login "massonju.eseo@gmail.com"
                              :client-id "XXXX"
                              :client-secret "XXXX")
 #+end_src
